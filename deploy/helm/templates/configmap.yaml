@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hcr.fullname" . }}-config
+  labels:
+    {{- include "hcr.labels" . | nindent 4 }}
+data:
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  PROBE_INTERVAL: {{ .Values.config.probeInterval | quote }}
+  PROBE_TIMEOUT: {{ .Values.config.probeTimeout | quote }}
+  FAILURES_TO_TRIP: {{ .Values.config.failuresToTrip | quote }}
+  SUCCESS_TO_RECOVER: {{ .Values.config.successToRecover | quote }}
+  QUORUM_REQUIRED: {{ .Values.config.quorumRequired | quote }}
+  QUORUM_TOTAL: {{ .Values.config.quorumTotal | quote }}
+  FAIL_OPEN_HOLD: {{ .Values.config.failOpenHold | quote }}
+  LDAP_URL: {{ .Values.config.ldapURL | quote }}
+  LDAP_BIND_DN: {{ .Values.config.ldapBindDN | quote }}
+  LDAP_BASE_DN: {{ .Values.config.ldapBaseDN | quote }}
+  LDAP_USER_FILTER: {{ .Values.config.ldapUserFilter | quote }}
+  LDAP_GROUP_FILTER: {{ .Values.config.ldapGroupFilter | quote }}
+  LDAP_ADMIN_GROUP: {{ .Values.config.ldapAdminGroup | quote }}
+  LDAP_CACHE_TTL: {{ .Values.config.ldapCacheTTL | quote }}
+  LDAP_BIND_PASSWORD_ENV: "LDAP_BIND_PASSWORD"
+  CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}
+  SSO_BINARY_ALLOWLIST: {{ .Values.config.ssoBinaryAllowlist | quote }}
+  ENVOY_XDS_ADDR: {{ .Values.config.envoyXDSAddr | quote }}

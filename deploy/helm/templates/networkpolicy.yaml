@@ -1,0 +1,31 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hcr.fullname" . }}
+  labels:
+    {{- include "hcr.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "hcr.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Dashboard and API traffic arrives via the ingress controller.
+    - ports:
+        - port: {{ .Values.service.targetPort }}
+          protocol: TCP
+  egress:
+    # Deliberately port-scoped rather than open: the prober reaches arbitrary
+    # internal hosts, so restricting by destination IP is impractical, but
+    # restricting by port still blocks most lateral movement.
+    {{- range .Values.networkPolicy.allowedEgressPorts }}
+    - ports:
+        - port: {{ . }}
+          protocol: TCP
+    {{- end }}
+    # DNS needs UDP as well as TCP.
+    - ports:
+        - port: 53
+          protocol: UDP
+{{- end }}

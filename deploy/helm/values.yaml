@@ -1,0 +1,125 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/beravelli/health-checker-router
+  tag: ""            # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    # SSE needs buffering off, or events sit in the proxy until the buffer
+    # fills and the dashboard appears frozen.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  hosts:
+    - host: health-checker.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    # No CPU limit on purpose: throttling a prober makes it report latency
+    # that reflects the cgroup, not the target.
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+    # IRSA role for AWS probes and Route 53 / CloudFront routing:
+    # eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/health-checker
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# Non-secret configuration, rendered into a ConfigMap.
+config:
+  logLevel: info
+  probeInterval: 5s
+  probeTimeout: 3s
+  failuresToTrip: 3
+  successToRecover: 2
+  quorumRequired: 2
+  quorumTotal: 3
+  failOpenHold: 10m
+  ldapAdminGroup: sre-admins
+  ldapCacheTTL: 5m
+  ldapUserFilter: "(uid=%s)"
+  ldapGroupFilter: "(member=%s)"
+  ldapURL: ""
+  ldapBindDN: ""
+  ldapBaseDN: ""
+  corsOrigins: ""
+  ssoBinaryAllowlist: ""
+  envoyXDSAddr: ""
+
+# Secrets are never templated into the chart. Point these at a Secret your
+# secrets engine populates (External Secrets Operator, Vault Agent Injector,
+# the Secrets Manager CSI driver...).
+secrets:
+  # Secret holding DATABASE_URL.
+  databaseSecretName: health-checker-db
+  databaseSecretKey: url
+  # Secret holding LDAP_BIND_PASSWORD.
+  ldapSecretName: health-checker-ldap
+  ldapSecretKey: bindPassword
+  # Extra secrets projected wholesale as env vars. This is how provider
+  # credential references (AVI_API_TOKEN, AKAMAI_EDGERC_JSON, per-service CA
+  # bundles) reach the pod.
+  extraEnvFrom: []
+    # - secretRef:
+    #     name: health-checker-providers
+
+migrations:
+  enabled: true
+  # Runs as a Helm pre-install/pre-upgrade hook so the schema is in place
+  # before any new pod starts.
+  image:
+    repository: ghcr.io/kukymbr/goose-docker
+    tag: "3.22.1"
+
+networkPolicy:
+  enabled: true
+  # Egress is restricted to Postgres, LDAP, DNS, and HTTPS for the AWS/Avi/
+  # Akamai APIs plus the probe targets themselves.
+  allowedEgressPorts: [53, 389, 636, 443, 5432]
+
+postgresql:
+  enabled: true
+  auth:
+    database: health_checker
+    username: health_checker

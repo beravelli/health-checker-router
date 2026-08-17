@@ -1,0 +1,14 @@
+apiVersion: v2
+name: health-checker-router
+description: Active-active health checker and routing console
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  # Prototype convenience. For production, prefer CloudNativePG so you get
+  # backups and failover rather than a bare StatefulSet.
+  - name: postgresql
+    version: "16.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled

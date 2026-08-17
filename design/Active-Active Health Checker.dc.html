@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+  <link rel="stylesheet" href="_ds/organic-f132b4a0-2368-4e61-bfb1-d2d3b7a8dcea/styles.css">
+  <script src="_ds/organic-f132b4a0-2368-4e61-bfb1-d2d3b7a8dcea/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; }
+    a { color: var(--color-accent); }
+    a:hover { color: var(--color-accent-700); }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: var(--color-neutral-400); border-radius: 999px; }
+    input[type="range"] { accent-color: var(--color-accent); }
+  </style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);padding-bottom:64px;">
+
+  <div class="nav" style="position:sticky;top:0;z-index:20;background:var(--color-bg);box-shadow:var(--shadow-sm);padding:14px 32px;flex-wrap:wrap;row-gap:10px;">
+    <span class="nav-brand" style="white-space:nowrap;">Meridian Health Watch</span>
+    <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="5">
+      <a href="#" onClick="{{ tab.onSelect }}" aria-current="{{ tab.current }}" style="font-family:var(--font-heading);padding:6px 4px;white-space:nowrap;">{{ tab.label }}</a>
+    </sc-for>
+    <div style="display:flex;align-items:center;gap:10px;margin-left:auto;flex:none;">
+      <span class="tag tag-outline" style="white-space:nowrap;">us-east-1 &amp; us-west-2</span>
+      <div class="seg" style="flex:none;" title="Prototype only — simulates the LDAP group your account resolves to">
+        <sc-for list="{{ ldapSimOptions }}" as="l" hint-placeholder-count="2">
+          <label class="seg-opt" style="white-space:nowrap;">
+            <input type="radio" name="ldap-sim" checked="{{ l.checked }}" onChange="{{ l.onSelect }}" />{{ l.label }}
+          </label>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ bannerVisible }}" hint-placeholder-val="{{ false }}">
+    <div style="margin:20px 32px 0;padding:14px 20px;border-radius:var(--radius-md);background:var(--color-accent-100);color:var(--color-accent-800);display:flex;align-items:center;gap:12px;font-size:14px;">
+      <span class="tag" style="background:var(--color-accent-500);color:var(--color-bg);">FAIL-OPEN ACTIVE</span>
+      <span>us-west-2 dependency health checks are inconclusive — LB is routing on last-known-good state per fail-open policy. Verify before trusting west-side health signals.</span>
+      <button class="btn btn-ghost" style="margin-left:auto;" onClick="{{ dismissBanner }}">Dismiss</button>
+    </div>
+  </sc-if>
+
+  <div style="max-width:1240px;margin:0 auto;padding:28px 32px;">
+
+    <!-- ══════ OVERVIEW ══════ -->
+    <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+      <h1 style="margin-bottom:2px;">Overview</h1>
+      <p class="text-muted" style="margin-bottom:24px;">Live health across both active-active sites. Both regions serve production traffic concurrently.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <sc-for list="{{ regions }}" as="r" hint-placeholder-count="2">
+          <div class="card elev-md" style="padding:22px;cursor:pointer;" onClick="{{ r.onOpen }}">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div>
+                <div class="card-kicker">{{ r.zone }}</div>
+                <div class="card-title" style="font-size:24px;">{{ r.name }}</div>
+              </div>
+              <span class="tag" style="background:{{ r.statusBg }};color:{{ r.statusFg }};font-size:12px;padding:5px 14px;">{{ r.statusLabel }}</span>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0 6px;">
+              <div>
+                <div style="font-size:26px;font-family:var(--font-heading);">{{ r.trafficPct }}%</div>
+                <div class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">Traffic share</div>
+              </div>
+              <div>
+                <div style="font-size:26px;font-family:var(--font-heading);">{{ r.latencyMs }}ms</div>
+                <div class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">p99 latency</div>
+              </div>
+              <div>
+                <div style="font-size:26px;font-family:var(--font-heading);">{{ r.errorRatePct }}%</div>
+                <div class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">Error rate</div>
+              </div>
+              <div>
+                <div style="font-size:26px;font-family:var(--font-heading);">{{ r.replicationLagMs }}ms</div>
+                <div class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">Repl. lag</div>
+              </div>
+            </div>
+
+            <div class="hr" style="margin:8px 0;"></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <sc-for list="{{ r.deps }}" as="d" hint-placeholder-count="4">
+                <span class="tag" style="background:{{ d.statusBg }};color:{{ d.statusFg }};">{{ d.name }}</span>
+              </sc-for>
+            </div>
+            <div class="card-meta" style="margin-top:4px;">
+              <span>version {{ r.version }}</span><span>·</span><span>uptime {{ r.uptimePct }}% (30d)</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <h2 style="margin-top:36px;">7-day uptime trend</h2>
+      <div class="card elev-sm" style="padding:20px;">
+        <sc-for list="{{ regions }}" as="r" hint-placeholder-count="2">
+          <div style="margin-bottom:16px;">
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px;">{{ r.name }}</div>
+            <div style="display:flex;align-items:flex-end;gap:8px;height:60px;">
+              <sc-for list="{{ r.trend }}" as="pt" hint-placeholder-count="7">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                  <div style="width:100%;border-radius:6px 6px 0 0;background:{{ pt.barColor }};height:{{ pt.barHeight }};"></div>
+                  <div class="text-muted" style="font-size:10px;">{{ pt.day }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <!-- ══════ SERVICES ══════ -->
+    <sc-if value="{{ isServices }}" hint-placeholder-val="{{ false }}">
+      <h1 style="margin-bottom:2px;">Service matrix</h1>
+      <p class="text-muted" style="margin-bottom:20px;">Per-service health across both sites, including deploy version skew.</p>
+      <div class="card elev-sm" style="padding:0;overflow:hidden;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Service</th><th>Runtime</th><th>us-east-1</th><th>us-west-2</th><th>Version skew</th><th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ services }}" as="s" hint-placeholder-count="8">
+              <tr>
+                <td style="font-weight:600;">{{ s.name }}</td>
+                <td class="text-muted">{{ s.runtime }}</td>
+                <td><span class="tag" style="background:{{ s.eastBg }};color:{{ s.eastFg }};">{{ s.eastLabel }}</span></td>
+                <td><span class="tag" style="background:{{ s.westBg }};color:{{ s.westFg }};">{{ s.westLabel }}</span></td>
+                <td>
+                  <sc-if value="{{ s.skew }}" hint-placeholder-val="{{ false }}">
+                    <span class="tag tag-outline">skewed</span>
+                  </sc-if>
+                  <sc-if value="{{ s.noSkew }}" hint-placeholder-val="{{ true }}">
+                    <span class="text-muted">—</span>
+                  </sc-if>
+                </td>
+                <td class="text-muted" style="font-size:13px;">{{ s.note }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </sc-if>
+
+    <!-- ══════ FAILOVER & ROUTING ══════ -->
+    <sc-if value="{{ isFailover }}" hint-placeholder-val="{{ false }}">
+      <h1 style="margin-bottom:2px;">Failover &amp; routing</h1>
+      <p class="text-muted" style="margin-bottom:20px;">Envoy edge health checks drive load-balancer weights. Manual override is available for confirmed regional incidents.</p>
+
+      <div class="card elev-sm" style="padding:16px 20px;margin-bottom:20px;display:flex;flex-direction:row;align-items:center;gap:10px;">
+        <span class="text-muted" style="font-size:13px;">Routing via</span>
+        <span class="tag tag-accent-2">{{ routingProviderLabel }}</span>
+        <span class="text-muted" style="font-size:12px;">— configured in <a href="#" onClick="{{ goToAdminRouting }}">Admin</a></span>
+      </div>
+
+      <h2 style="margin-top:0;">Routing endpoints</h2>
+      <div class="card elev-sm" style="padding:0;overflow:hidden;margin-bottom:28px;">
+        <table class="table">
+          <thead><tr><th>Provider</th><th>Status</th><th>Config</th><th>Auth</th></tr></thead>
+          <tbody>
+            <sc-for list="{{ allRoutingEndpoints }}" as="ep" hint-placeholder-count="4">
+              <tr>
+                <td style="font-weight:600;">{{ ep.label }}</td>
+                <td><span class="tag" style="background:{{ ep.statusBg }};color:{{ ep.statusFg }};">{{ ep.statusLabel }}</span></td>
+                <td class="text-muted" style="font-size:13px;">{{ ep.configSummary }}</td>
+                <td class="text-muted" style="font-size:13px;">{{ ep.authSummary }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:20px;align-items:start;">
+        <div class="card elev-md" style="padding:22px;">
+          <h3 style="margin-bottom:4px;">Load balancer weights</h3>
+          <p class="card-body" style="margin-bottom:16px;">Traffic is split by health-checked weight, not fixed percentage. Dragging overrides the automatic health-based weighting until reset.</p>
+
+          <div style="margin-bottom:18px;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span>us-east-1</span><span style="font-family:var(--font-heading);">{{ lbEast }}%</span></div>
+            <input type="range" min="0" max="100" value="{{ lbEast }}" onChange="{{ onLbEastChange }}" style="width:100%;" />
+          </div>
+          <div style="margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span>us-west-2</span><span style="font-family:var(--font-heading);">{{ lbWest }}%</span></div>
+            <input type="range" min="0" max="100" value="{{ lbWest }}" onChange="{{ onLbWestChange }}" style="width:100%;" />
+          </div>
+          <div style="display:flex;gap:10px;margin-top:14px;">
+            <button class="btn btn-secondary" onClick="{{ resetWeights }}">Reset to automatic</button>
+            <button class="btn btn-primary" onClick="{{ openFailoverConfirm }}">{{ failoverButtonLabel }}</button>
+          </div>
+        </div>
+
+        <div class="card elev-md" style="padding:22px;">
+          <h3 style="margin-bottom:4px;">Fail-open policy</h3>
+          <p class="card-body">When health-check quorum across probes is inconclusive (e.g. probe timeout, partial network partition) rather than a confirmed failure, the LB fails open — it keeps routing to last-known-good weights instead of pulling a region fully out, to avoid a false-positive full outage.</p>
+          <div class="hr"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;">
+            <div style="display:flex;justify-content:space-between;"><span>Probe interval</span><span class="text-muted">5s</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>Consecutive failures to trip</span><span class="text-muted">3</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>Quorum required</span><span class="text-muted">2 of 3 AZ probes</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>Fail-open hold</span><span class="text-muted">last-known-good, max 10m</span></div>
+          </div>
+        </div>
+      </div>
+
+      <h2 style="margin-top:32px;">Edge cases this system covers</h2>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <sc-for list="{{ edgeCases }}" as="e" hint-placeholder-count="6">
+          <div class="card elev-sm" style="padding:0;">
+            <button onClick="{{ e.onToggle }}" style="all:unset;box-sizing:border-box;width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;cursor:pointer;">
+              <span style="font-weight:600;font-size:14px;">{{ e.title }}</span>
+              <span class="text-muted" style="font-size:18px;">{{ e.chevron }}</span>
+            </button>
+            <sc-if value="{{ e.expanded }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:0 20px 18px;font-size:13px;">
+                <p class="text-muted" style="margin-bottom:8px;">{{ e.description }}</p>
+                <div style="display:flex;gap:8px;align-items:flex-start;">
+                  <span class="tag tag-accent-2" style="flex:none;">Mitigation</span>
+                  <span>{{ e.mitigation }}</span>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <!-- ══════ ROLLOUTS ══════ -->
+    <sc-if value="{{ isRollouts }}" hint-placeholder-val="{{ false }}">
+      <h1 style="margin-bottom:2px;">Rollouts</h1>
+      <p class="text-muted" style="margin-bottom:20px;">Deploy progress per region. Canary in one region is verified against the health checker before promoting to the other.</p>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <sc-for list="{{ rollouts }}" as="ro" hint-placeholder-count="4">
+          <div class="card elev-sm" style="padding:18px 20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div>
+                <span style="font-weight:600;font-size:14px;">{{ ro.service }}</span>
+                <span class="text-muted" style="font-size:12px;margin-left:8px;">{{ ro.fromVersion }} → {{ ro.toVersion }}</span>
+              </div>
+              <span class="tag" style="background:{{ ro.statusBg }};color:{{ ro.statusFg }};">{{ ro.statusLabel }}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>us-east-1</span><span>{{ ro.eastPct }}%</span></div>
+                <div style="height:8px;border-radius:999px;background:var(--color-neutral-200);overflow:hidden;"><div style="height:100%;width:{{ ro.eastPct }}%;background:var(--color-accent-2-500);"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>us-west-2</span><span>{{ ro.westPct }}%</span></div>
+                <div style="height:8px;border-radius:999px;background:var(--color-neutral-200);overflow:hidden;"><div style="height:100%;width:{{ ro.westPct }}%;background:var(--color-accent-2-500);"></div></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:14px;">
+              <button class="btn btn-secondary" onClick="{{ ro.onPause }}">{{ ro.pauseLabel }}</button>
+              <button class="btn btn-ghost" onClick="{{ ro.onRollback }}">Roll back</button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+<!-- ══════ ADMIN ══════ -->
+    <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+      <h1 style="margin-bottom:2px;">Admin — checked services</h1>
+      <p class="text-muted" style="margin-bottom:20px;">Register services for the health checker to probe, and control whether each one can drive LB failover decisions or is monitoring-only.</p>
+
+      <sc-if value="{{ ldapDenied }}" hint-placeholder-val="{{ false }}">
+        <div class="card elev-md" style="padding:26px;">
+          <div class="card-kicker">Access restricted</div>
+          <div class="card-title" style="font-size:20px;margin-bottom:8px;">You don't have admin access to this section</div>
+          <p class="card-body" style="margin-bottom:14px;">Editing checked services and their failover role requires LDAP group membership in <span class="tag tag-accent">sre-admins</span>. You're currently resolved as <span class="tag tag-neutral">{{ ldapCurrentGroup }}</span>, which can view health data but not modify it.</p>
+          <p class="text-muted" style="font-size:12px;">Ask an existing member of sre-admins to add you, or request access through your identity team.</p>
+        </div>
+      </sc-if>
+
+<sc-if value="{{ ldapAllowed }}" hint-placeholder-val="{{ true }}">
+      <div class="card elev-md" style="padding:22px;margin-bottom:24px;">
+        <h3 style="margin-bottom:4px;">Traffic routing provider</h3>
+        <p class="card-body" style="margin-bottom:14px;">Which traffic manager fronts this app pair — the checker pushes weight/failover changes here. Shown read-only to on-call in Failover &amp; routing.</p>
+        <div class="seg" style="width:100%;flex-wrap:wrap;margin-bottom:16px;">
+          <sc-for list="{{ routingProviderOptions }}" as="rp" hint-placeholder-count="4">
+            <label class="seg-opt">
+              <input type="radio" name="routing-provider" checked="{{ rp.checked }}" onChange="{{ rp.onSelect }}" />{{ rp.label }}
+            </label>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ isProviderAwsNative }}" hint-placeholder-val="{{ true }}">
+          <p class="card-body" style="margin:0 0 14px;">Route 53 weighted/failover records + Envoy at the edge, ALB/NLB target-group health backing region-level weights.</p>
+          <div class="hr" style="margin:0 0 14px;"></div>
+          <div class="field"><label>Authentication</label>
+            <div class="seg" style="width:100%;flex-wrap:wrap;">
+              <sc-for list="{{ awsNativeAuthOptions }}" as="m" hint-placeholder-count="3">
+                <label class="seg-opt"><input type="radio" name="awsnative-auth" checked="{{ m.checked }}" onChange="{{ m.onSelect }}" />{{ m.label }}</label>
+              </sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ isAwsNativeAuthRole }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;">
+              <div class="field"><label>IAM role ARN</label><input class="input" type="text" placeholder="arn:aws:iam::123456789012:role/route53-lb-admin" value="{{ routingAuth.awsNative.roleArn }}" onChange="{{ onAwsNativeRoleArnChange }}" /></div>
+              <div class="field"><label>External ID (optional)</label><input class="input" type="text" value="{{ routingAuth.awsNative.externalId }}" onChange="{{ onAwsNativeExternalIdChange }}" /></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isAwsNativeAuthKey }}" hint-placeholder-val="{{ false }}">
+            <div class="field"><label>Service account credentials — env var name</label><input class="input" type="text" placeholder="HEALTHCHECK_ROUTE53_SERVICE_ACCOUNT" value="{{ routingAuth.awsNative.secretName }}" onChange="{{ onAwsNativeSecretNameChange }}" /></div>
+          </sc-if>
+          <sc-if value="{{ isAwsNativeAuthSso }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;">
+              <div class="field"><label>SSO start URL</label><input class="input" type="text" placeholder="https://my-org.awsapps.com/start" value="{{ routingAuth.awsNative.ssoStartUrl }}" onChange="{{ onAwsNativeSsoStartUrlChange }}" /></div>
+              <div class="field"><label>Account ID</label><input class="input" type="text" value="{{ routingAuth.awsNative.ssoAccountId }}" onChange="{{ onAwsNativeSsoAccountIdChange }}" /></div>
+              <div class="field"><label>Role name</label><input class="input" type="text" value="{{ routingAuth.awsNative.ssoRoleName }}" onChange="{{ onAwsNativeSsoRoleNameChange }}" /></div>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ isProviderCloudfront }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="field"><label>Distribution ID</label><input class="input" type="text" placeholder="E1A2B3C4D5E6F7" value="{{ routingConfig.cfDistributionId }}" onChange="{{ onCfDistributionIdChange }}" /></div>
+            <div class="field"><label>Origin group ID</label><input class="input" type="text" placeholder="us-active-active-origin-group" value="{{ routingConfig.cfOriginGroupId }}" onChange="{{ onCfOriginGroupIdChange }}" /></div>
+          </div>
+          <p class="text-muted" style="font-size:12px;margin:6px 0 14px;">Failover triggers CloudFront's origin-group failover (primary → secondary origin on 5xx/timeout) rather than a weight change.</p>
+          <div class="hr" style="margin:0 0 14px;"></div>
+          <div class="field"><label>Authentication</label>
+            <div class="seg" style="width:100%;flex-wrap:wrap;">
+              <sc-for list="{{ cloudfrontAuthOptions }}" as="m" hint-placeholder-count="3">
+                <label class="seg-opt"><input type="radio" name="cf-auth" checked="{{ m.checked }}" onChange="{{ m.onSelect }}" />{{ m.label }}</label>
+              </sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ isCfAuthRole }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;">
+              <div class="field"><label>IAM role ARN</label><input class="input" type="text" placeholder="arn:aws:iam::123456789012:role/cloudfront-admin" value="{{ routingAuth.cloudfront.roleArn }}" onChange="{{ onCfRoleArnChange }}" /></div>
+              <div class="field"><label>External ID (optional)</label><input class="input" type="text" value="{{ routingAuth.cloudfront.externalId }}" onChange="{{ onCfExternalIdChange }}" /></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isCfAuthKey }}" hint-placeholder-val="{{ false }}">
+            <div class="field"><label>Service account credentials — env var name</label><input class="input" type="text" placeholder="HEALTHCHECK_CLOUDFRONT_SERVICE_ACCOUNT" value="{{ routingAuth.cloudfront.secretName }}" onChange="{{ onCfSecretNameChange }}" /></div>
+          </sc-if>
+          <sc-if value="{{ isCfAuthSso }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;">
+              <div class="field"><label>SSO start URL</label><input class="input" type="text" placeholder="https://my-org.awsapps.com/start" value="{{ routingAuth.cloudfront.ssoStartUrl }}" onChange="{{ onCfSsoStartUrlChange }}" /></div>
+              <div class="field"><label>Account ID</label><input class="input" type="text" value="{{ routingAuth.cloudfront.ssoAccountId }}" onChange="{{ onCfSsoAccountIdChange }}" /></div>
+              <div class="field"><label>Role name</label><input class="input" type="text" value="{{ routingAuth.cloudfront.ssoRoleName }}" onChange="{{ onCfSsoRoleNameChange }}" /></div>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ isProviderAvi }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="field"><label>GSLB service name</label><input class="input" type="text" placeholder="gslb-checkout-svc" value="{{ routingConfig.aviGslbService }}" onChange="{{ onAviGslbServiceChange }}" /></div>
+            <div class="field"><label>Controller URL</label><input class="input" type="text" placeholder="https://avi-controller.internal" value="{{ routingConfig.aviControllerUrl }}" onChange="{{ onAviControllerUrlChange }}" /></div>
+          </div>
+          <p class="text-muted" style="font-size:12px;margin:6px 0 14px;">Failover updates GSLB pool member ratio/priority for this service via the Avi Controller API.</p>
+          <div class="hr" style="margin:0 0 14px;"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="field"><label>Controller username</label><input class="input" type="text" placeholder="health-checker-svc" value="{{ routingAuth.avi.username }}" onChange="{{ onAviUsernameChange }}" /></div>
+            <div class="field"><label>API token / password — env var name</label><input class="input" type="text" placeholder="HEALTHCHECK_AVI_API_TOKEN" value="{{ routingAuth.avi.secretPath }}" onChange="{{ onAviSecretPathChange }}" /></div>
+          </div>
+          <p class="text-muted" style="font-size:11px;margin:0;">Stores an environment variable name only; the value is injected into that variable by your secrets engine at deploy/runtime, never entered or stored here.</p>
+        </sc-if>
+
+        <sc-if value="{{ isProviderAkamai }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="field"><label>Cloudlet policy ID</label><input class="input" type="text" placeholder="123456" value="{{ routingConfig.akamaiPolicyId }}" onChange="{{ onAkamaiPolicyIdChange }}" /></div>
+            <div class="field"><label>Property hostname</label><input class="input" type="text" placeholder="app.example.com" value="{{ routingConfig.akamaiHostname }}" onChange="{{ onAkamaiHostnameChange }}" /></div>
+          </div>
+          <p class="text-muted" style="font-size:12px;margin:6px 0 14px;">Failover activates a new Application Load Balancer Cloudlet policy version routing away from the unhealthy origin.</p>
+          <div class="hr" style="margin:0 0 14px;"></div>
+          <div class="field"><label>EdgeGrid credential bundle — env var name</label><input class="input" type="text" placeholder="HEALTHCHECK_AKAMAI_EDGERC" value="{{ routingAuth.akamai.secretPath }}" onChange="{{ onAkamaiSecretPathChange }}" /></div>
+          <p class="text-muted" style="font-size:11px;margin:0;">Holds the client token, client secret, access token and host for Akamai's EdgeGrid auth as one env var, injected by your secrets engine — never entered directly here.</p>
+        </sc-if>
+      </div>
+
+      <div class="card elev-md" style="padding:22px;margin-bottom:24px;">
+        <h3 style="margin-bottom:14px;">Add a region</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div class="field">
+            <label>Region name</label>
+            <input class="input" type="text" placeholder="e.g. eu-west-1" value="{{ regionForm.name }}" onChange="{{ onRegionNameChange }}" />
+          </div>
+          <div class="field">
+            <label>Cloud provider</label>
+            <select class="input" value="{{ regionForm.provider }}" onChange="{{ onRegionProviderChange }}">
+              <option value="AWS">AWS</option>
+              <option value="GCP">GCP</option>
+              <option value="Azure">Azure</option>
+              <option value="On-prem">On-prem</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onClick="{{ onAddRegion }}">Add region</button>
+      </div>
+
+      <h3 style="margin-bottom:10px;">Configured regions</h3>
+      <div class="card elev-sm" style="padding:0;overflow:hidden;margin-bottom:24px;">
+        <table class="table">
+          <thead>
+            <tr><th>Region</th><th>Cloud provider</th><th></th></tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ adminRegions }}" as="rg" hint-placeholder-count="2">
+              <tr>
+                <td style="font-weight:600;">
+                  <sc-if value="{{ rg.editing }}" hint-placeholder-val="{{ false }}">
+                    <input class="input" type="text" value="{{ rg.draftName }}" onChange="{{ rg.onDraftNameChange }}" />
+                  </sc-if>
+                  <sc-if value="{{ rg.notEditing }}" hint-placeholder-val="{{ true }}">{{ rg.name }}</sc-if>
+                </td>
+                <td>
+                  <sc-if value="{{ rg.editing }}" hint-placeholder-val="{{ false }}">
+                    <select class="input" value="{{ rg.draftProvider }}" onChange="{{ rg.onDraftProviderChange }}">
+                      <option value="AWS">AWS</option>
+                      <option value="GCP">GCP</option>
+                      <option value="Azure">Azure</option>
+                      <option value="On-prem">On-prem</option>
+                    </select>
+                  </sc-if>
+                  <sc-if value="{{ rg.notEditing }}" hint-placeholder-val="{{ true }}"><span class="tag tag-neutral">{{ rg.provider }}</span></sc-if>
+                </td>
+                <td style="white-space:nowrap;">
+                  <sc-if value="{{ rg.editing }}" hint-placeholder-val="{{ false }}">
+                    <button class="btn btn-primary" style="padding:4px 12px;font-size:12px;" onClick="{{ rg.onSave }}">Save</button>
+                    <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;" onClick="{{ rg.onCancel }}">Cancel</button>
+                  </sc-if>
+                  <sc-if value="{{ rg.notEditing }}" hint-placeholder-val="{{ true }}">
+                    <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;" onClick="{{ rg.onEdit }}">Edit</button>
+                    <button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;" onClick="{{ rg.onRemove }}">Remove</button>
+                  </sc-if>
+                </td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card elev-md" style="padding:22px;margin-bottom:24px;">
+        <h3 style="margin-bottom:14px;">Add a service</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div class="field">
+            <label>Service name</label>
+            <input class="input" type="text" placeholder="e.g. recommendations-service" value="{{ adminForm.name }}" onChange="{{ onAdminNameChange }}" />
+          </div>
+          <div class="field">
+            <label>Runtime</label>
+            <input class="input" type="text" placeholder="e.g. EC2 ASG" value="{{ adminForm.runtime }}" onChange="{{ onAdminRuntimeChange }}" />
+          </div>
+        </div>
+        <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;">
+          <div class="field" style="margin:0;">
+            <label>Regions to probe</label>
+            <div style="display:flex;gap:16px;">
+              <label class="radio"><input type="checkbox" checked="{{ adminForm.east }}" onChange="{{ onAdminEastToggle }}" /><span class="dot"></span>us-east-1</label>
+              <label class="radio"><input type="checkbox" checked="{{ adminForm.west }}" onChange="{{ onAdminWestToggle }}" /><span class="dot"></span>us-west-2</label>
+            </div>
+          </div>
+          <div class="field" style="margin:0;">
+            <label>Role</label>
+            <div class="seg">
+              <sc-for list="{{ adminModeOptions }}" as="m" hint-placeholder-count="2">
+                <label class="seg-opt">
+                  <input type="radio" name="admin-mode" checked="{{ m.checked }}" onChange="{{ m.onSelect }}" />{{ m.label }}
+                </label>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <p class="text-muted" style="font-size:12px;margin:-4px 0 14px;">Health check only: shown in the matrix and pages on-call, but never changes LB weights. Health check + failover: can trigger automatic weight reduction or a full regional pull.</p>
+
+        <div class="field">
+          <label>Health check method</label>
+          <div class="seg" style="width:100%;flex-wrap:wrap;">
+            <sc-for list="{{ checkTypeOptions }}" as="ct" hint-placeholder-count="5">
+              <label class="seg-opt">
+                <input type="radio" name="check-type" checked="{{ ct.checked }}" onChange="{{ ct.onSelect }}" />{{ ct.label }}
+              </label>
+            </sc-for>
+          </div>
+        </div>
+
+        <sc-if value="{{ isCheckHttp }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin:14px 0;">
+            <div class="field"><label>Path</label><input class="input" type="text" placeholder="/healthz" value="{{ adminForm.httpPath }}" onChange="{{ onHttpPathChange }}" /></div>
+            <div class="field"><label>Port</label><input class="input" type="text" placeholder="443" value="{{ adminForm.httpPort }}" onChange="{{ onHttpPortChange }}" /></div>
+            <div class="field"><label>Expected status</label><input class="input" type="text" placeholder="200" value="{{ adminForm.httpExpectedStatus }}" onChange="{{ onHttpStatusChange }}" /></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isCheckTcp }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:1fr;gap:14px;margin:14px 0;max-width:200px;">
+            <div class="field"><label>Port</label><input class="input" type="text" placeholder="5432" value="{{ adminForm.tcpPort }}" onChange="{{ onTcpPortChange }}" /></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isCheckAlb }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin:14px 0;">
+            <div class="field"><label>Target group ARN</label><input class="input" type="text" placeholder="arn:aws:elasticloadbalancing:…:targetgroup/…" value="{{ adminForm.albTargetGroup }}" onChange="{{ onAlbTargetGroupChange }}" /></div>
+            <div class="field">
+              <label>Balancer type</label>
+              <select class="input" value="{{ adminForm.albKind }}" onChange="{{ onAlbKindChange }}">
+                <option value="ALB">ALB</option>
+                <option value="NLB">NLB</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>AWS authentication (used to call the AWS API before probing)</label>
+            <div class="seg" style="width:100%;flex-wrap:wrap;">
+              <sc-for list="{{ awsAuthOptions }}" as="am" hint-placeholder-count="3">
+                <label class="seg-opt">
+                  <input type="radio" name="aws-auth" checked="{{ am.checked }}" onChange="{{ am.onSelect }}" />{{ am.label }}
+                </label>
+              </sc-for>
+            </div>
+          </div>
+
+          <sc-if value="{{ isAwsAuthRole }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin:0 0 14px;">
+              <div class="field"><label>IAM role ARN to assume</label><input class="input" type="text" placeholder="arn:aws:iam::123456789012:role/health-checker-probe" value="{{ adminForm.awsRoleArn }}" onChange="{{ onAwsRoleArnChange }}" /></div>
+              <div class="field"><label>External ID (optional)</label><input class="input" type="text" placeholder="" value="{{ adminForm.awsExternalId }}" onChange="{{ onAwsExternalIdChange }}" /></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isAwsAuthKey }}" hint-placeholder-val="{{ false }}">
+            <div class="field" style="margin:0 0 14px;">
+              <label>Service account credentials — environment variable name</label>
+              <input class="input" type="text" placeholder="HEALTHCHECK_AWS_SERVICE_ACCOUNT" value="{{ adminForm.awsSecretName }}" onChange="{{ onAwsSecretNameChange }}" />
+            </div>
+          </sc-if>
+          <sc-if value="{{ isAwsAuthSso }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:14px;margin:0 0 4px;">
+              <div class="field"><label>SSO start URL</label><input class="input" type="text" placeholder="https://my-org.awsapps.com/start" value="{{ adminForm.awsSsoStartUrl }}" onChange="{{ onAwsSsoStartUrlChange }}" /></div>
+              <div class="field"><label>SSO region</label><input class="input" type="text" placeholder="us-east-1" value="{{ adminForm.awsSsoRegion }}" onChange="{{ onAwsSsoRegionChange }}" /></div>
+              <div class="field"><label>Account ID</label><input class="input" type="text" placeholder="123456789012" value="{{ adminForm.awsSsoAccountId }}" onChange="{{ onAwsSsoAccountIdChange }}" /></div>
+              <div class="field"><label>SSO role name</label><input class="input" type="text" placeholder="HealthCheckerProbe" value="{{ adminForm.awsSsoRoleName }}" onChange="{{ onAwsSsoRoleNameChange }}" /></div>
+            </div>
+            <p class="text-muted" style="font-size:11px;margin:0 0 14px;">The checker performs an SSO device/browser login once per session and caches the short-lived credentials it receives — it never stores your long-term SSO password.</p>
+
+            <label class="radio" style="margin-bottom:10px;">
+              <input type="checkbox" checked="{{ adminForm.awsSsoUseCustomBinary }}" onChange="{{ onAwsSsoUseCustomBinaryChange }}" /><span class="dot"></span>Use a custom SSO login binary instead of the default AWS CLI flow
+            </label>
+            <sc-if value="{{ adminForm.awsSsoUseCustomBinary }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin:0 0 4px;">
+                <div class="field"><label>Binary path</label><input class="input" type="text" placeholder="/usr/local/bin/company-aws-sso-login" value="{{ adminForm.awsSsoBinaryPath }}" onChange="{{ onAwsSsoBinaryPathChange }}" /></div>
+                <div class="field"><label>Arguments (optional)</label><input class="input" type="text" placeholder="--profile health-checker --json" value="{{ adminForm.awsSsoBinaryArgs }}" onChange="{{ onAwsSsoBinaryArgsChange }}" /></div>
+              </div>
+              <p class="text-muted" style="font-size:11px;margin:0 0 14px;">The prober invokes this binary and expects short-lived AWS credentials (access key, secret key, session token) on stdout as JSON — the same contract as <span style="font-family:monospace;">aws sso login</span> wrappers used with <span style="font-family:monospace;">credential_process</span>.</p>
+            </sc-if>
+          </sc-if>
+        </sc-if>
+        <sc-if value="{{ isCheckGrpc }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin:14px 0;">
+            <div class="field"><label>gRPC service name</label><input class="input" type="text" placeholder="grpc.health.v1.Health" value="{{ adminForm.grpcService }}" onChange="{{ onGrpcServiceChange }}" /></div>
+            <div class="field"><label>Port</label><input class="input" type="text" placeholder="50051" value="{{ adminForm.grpcPort }}" onChange="{{ onGrpcPortChange }}" /></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isCheckOther }}" hint-placeholder-val="{{ false }}">
+          <div class="field" style="margin:14px 0;">
+            <label>Custom check description</label>
+            <input class="input" type="text" placeholder="e.g. Kafka consumer-lag script, Nagios plugin name…" value="{{ adminForm.customCheck }}" onChange="{{ onCustomCheckChange }}" />
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showTlsSection }}" hint-placeholder-val="{{ true }}">
+          <div style="margin:14px 0;">
+            <label class="radio" style="margin-bottom:8px;">
+              <input type="checkbox" checked="{{ adminForm.useCaCert }}" onChange="{{ onUseCaCertChange }}" /><span class="dot"></span>Verify with custom CA certificate (TLS)
+            </label>
+            <sc-if value="{{ adminForm.useCaCert }}" hint-placeholder-val="{{ false }}">
+              <input class="input" type="text" placeholder="HEALTHCHECK_CA_BUNDLE_PEM" value="{{ adminForm.caCertPem }}" onChange="{{ onCaCertPemChange }}" />
+              <p class="text-muted" style="font-size:11px;margin:6px 0 0;">Name of the environment variable holding the CA bundle (PEM), injected by your secrets engine — not pasted here. Probes fail closed if the chain doesn't validate.</p>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <div class="field" style="margin-top:2px;">
+          <label>Probe timing</label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+            <div><label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Interval (s)</label><input class="input" type="text" placeholder="5" value="{{ adminForm.intervalSec }}" onChange="{{ onIntervalChange }}" /></div>
+            <div><label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Timeout (s)</label><input class="input" type="text" placeholder="3" value="{{ adminForm.timeoutSec }}" onChange="{{ onTimeoutChange }}" /></div>
+            <div><label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Unhealthy after</label><input class="input" type="text" placeholder="3" value="{{ adminForm.unhealthyThreshold }}" onChange="{{ onUnhealthyThresholdChange }}" /></div>
+            <div><label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Healthy after</label><input class="input" type="text" placeholder="2" value="{{ adminForm.healthyThreshold }}" onChange="{{ onHealthyThresholdChange }}" /></div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" style="margin-top:16px;" onClick="{{ onAddService }}">Add service</button>
+      </div>
+
+      <h3 style="margin-bottom:10px;">Configured services</h3>
+      <div class="card elev-sm" style="padding:0;overflow:hidden;">
+        <table class="table">
+          <thead>
+            <tr><th>Service</th><th>Runtime</th><th>Regions</th><th>Check</th><th>Timing</th><th>Role</th><th></th></tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ adminServices }}" as="a" hint-placeholder-count="6">
+              <tr>
+                <td style="font-weight:600;">{{ a.name }}</td>
+                <td class="text-muted">{{ a.runtime }}</td>
+                <td class="text-muted">{{ a.regionsLabel }}</td>
+                <td>
+                  <span class="tag tag-outline">{{ a.checkLabel }}</span>
+                  <sc-if value="{{ a.usesCaCert }}" hint-placeholder-val="{{ false }}">
+                    <span class="tag tag-accent-2" style="margin-left:4px;">TLS CA</span>
+                  </sc-if>
+                  <sc-if value="{{ a.awsAuthLabel }}" hint-placeholder-val="{{ false }}">
+                    <span class="tag tag-neutral" style="margin-left:4px;">{{ a.awsAuthLabel }}</span>
+                  </sc-if>
+                  <sc-if value="{{ a.usesCustomSsoBinary }}" hint-placeholder-val="{{ false }}">
+                    <span class="tag tag-neutral" style="margin-left:4px;">custom binary</span>
+                  </sc-if>
+                </td>
+                <td class="text-muted" style="font-size:12px;">{{ a.timingLabel }}</td>
+                <td>
+                  <button class="tag" style="background:{{ a.modeBg }};color:{{ a.modeFg }};border:none;cursor:pointer;" onClick="{{ a.onToggleMode }}">{{ a.modeLabel }}</button>
+                </td>
+                <td><button class="btn btn-ghost" onClick="{{ a.onRemove }}">Remove</button></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      </sc-if>
+    </sc-if>
+
+    <!-- ══════ INCIDENTS ══════ -->
+    <sc-if value="{{ isIncidents }}" hint-placeholder-val="{{ false }}">
+      <h1 style="margin-bottom:2px;">Incident timeline</h1>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <p class="text-muted" style="margin:0;">Cross-region notifications fire when a health signal persists past the fail-open hold window.</p>
+        <div class="seg">
+          <sc-for list="{{ severityFilters }}" as="f" hint-placeholder-count="4">
+            <label class="seg-opt">
+              <input type="radio" name="sev" checked="{{ f.checked }}" onChange="{{ f.onSelect }}" />{{ f.label }}
+            </label>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <sc-for list="{{ visibleIncidents }}" as="i" hint-placeholder-count="5">
+          <div style="display:flex;gap:16px;padding:16px 4px;border-bottom:1px solid var(--color-divider);">
+            <div style="width:78px;flex:none;font-size:12px;color:var(--color-text);opacity:0.6;padding-top:2px;">{{ i.time }}</div>
+            <div style="width:3px;flex:none;border-radius:999px;background:{{ i.dotColor }};"></div>
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                <span style="font-weight:600;font-size:14px;">{{ i.title }}</span>
+                <span class="tag" style="background:{{ i.sevBg }};color:{{ i.sevFg }};">{{ i.severityLabel }}</span>
+                <span class="tag tag-neutral">{{ i.region }}</span>
+              </div>
+              <p style="margin:0;font-size:13px;opacity:0.8;">{{ i.description }}</p>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+  </div>
+
+  <!-- ══════ REGION DRILL-IN DIALOG ══════ -->
+  <sc-if value="{{ showRegionDialog }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" onClick="{{ closeRegionDialog }}">
+      <div class="dialog" style="width:min(560px,100%);" onClick="{{ stopClick }}">
+        <div class="dialog-title">{{ selectedRegion.name }} detail</div>
+        <div class="dialog-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;"><span>AZs healthy</span><span class="text-muted">{{ selectedRegion.azHealthy }}</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>Nodes in service</span><span class="text-muted">{{ selectedRegion.nodes }}</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>Envoy proxies</span><span class="text-muted">{{ selectedRegion.proxies }}</span></div>
+            <div style="display:flex;justify-content:space-between;"><span>Last probe</span><span class="text-muted">{{ selectedRegion.lastProbe }}</span></div>
+          </div>
+          <div class="hr"></div>
+          <div style="margin-top:12px;">
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px;">Dependency breakdown</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <sc-for list="{{ selectedRegion.deps }}" as="d" hint-placeholder-count="4">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+                  <span>{{ d.name }}</span>
+                  <span class="tag" style="background:{{ d.statusBg }};color:{{ d.statusFg }};">{{ d.statusLabel }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" onClick="{{ closeRegionDialog }}">Close</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ══════ FAILOVER CONFIRM DIALOG ══════ -->
+  <sc-if value="{{ showFailoverConfirm }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" onClick="{{ closeFailoverConfirm }}">
+      <div class="dialog" onClick="{{ stopClick }}">
+        <div class="dialog-title">Confirm manual failover</div>
+        <div class="dialog-body">This routes 100% of traffic to <strong>us-west-2</strong> via <strong>{{ routingProviderLabel }}</strong> and pulls us-east-1 out of rotation. On-call for both regions will be paged. This does not stop background replication.</div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" onClick="{{ closeFailoverConfirm }}">Cancel</button>
+          <button class="btn btn-primary" onClick="{{ confirmFailover }}">Failover to west</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const STATUS = {
+  healthy: { bg: 'var(--color-accent-2-100)', fg: 'var(--color-accent-2-800)', label: 'Healthy' },
+  degraded: { bg: 'var(--color-accent-100)', fg: 'var(--color-accent-800)', label: 'Degraded' },
+  critical: { bg: 'oklch(93% 0.045 25)', fg: 'oklch(38% 0.15 25)', label: 'Critical' },
+};
+
+class Component extends DCLogic {
+  state = {
+    activeTab: 'overview',
+    bannerVisible: true,
+    lbEast: 55,
+    lbWest: 45,
+    showRegionDialog: false,
+    selectedRegionId: null,
+    showFailoverConfirm: false,
+    expandedEdgeCase: 'ec2',
+    severityFilter: 'all',
+    ldapGroup: 'sre-admins',
+    routingProvider: 'aws_native',
+    routingConfig: {
+      cfDistributionId: '', cfOriginGroupId: '',
+      aviGslbService: '', aviControllerUrl: '',
+      akamaiPolicyId: '', akamaiHostname: '',
+    },
+    routingAuth: {
+      awsNative: { method: 'role', roleArn: '', externalId: '', secretName: '', ssoStartUrl: '', ssoAccountId: '', ssoRoleName: '' },
+      cloudfront: { method: 'role', roleArn: '', externalId: '', secretName: '', ssoStartUrl: '', ssoAccountId: '', ssoRoleName: '' },
+      avi: { username: '', secretPath: '' },
+      akamai: { secretPath: '' },
+    },
+    regionForm: { name: '', provider: 'AWS' },
+    adminRegions: [
+      { id: 'rg1', name: 'us-east-1', provider: 'AWS', editing: false, draftName: 'us-east-1', draftProvider: 'AWS' },
+      { id: 'rg2', name: 'us-west-2', provider: 'AWS', editing: false, draftName: 'us-west-2', draftProvider: 'AWS' },
+    ],
+    adminForm: {
+      name: '', runtime: '', east: true, west: true, mode: 'failover', checkType: 'http',
+      httpPath: '/healthz', httpPort: '443', httpExpectedStatus: '200',
+      tcpPort: '', albTargetGroup: '', albKind: 'ALB', grpcService: '', grpcPort: '', customCheck: '',
+      intervalSec: '5', timeoutSec: '3', unhealthyThreshold: '3', healthyThreshold: '2',
+      useCaCert: false, caCertPem: '',
+      awsAuthMethod: 'role', awsRoleArn: '', awsExternalId: '', awsSecretName: '',
+      awsSsoStartUrl: '', awsSsoRegion: '', awsSsoAccountId: '', awsSsoRoleName: '',
+      awsSsoUseCustomBinary: false, awsSsoBinaryPath: '', awsSsoBinaryArgs: '',
+    },
+    adminServices: [
+      { id: 'a1', name: 'api-gateway', runtime: 'Envoy / EC2 ASG', regions: ['us-east-1', 'us-west-2'], mode: 'failover', checkType: 'http', checkSummary: 'GET /healthz : 200', timing: { interval: 5, timeout: 3, unhealthy: 3, healthy: 2 }, usesCaCert: true },
+      { id: 'a2', name: 'checkout-service', runtime: 'EC2 ASG', regions: ['us-east-1', 'us-west-2'], mode: 'failover', checkType: 'alb', checkSummary: 'ALB target group', timing: { interval: 10, timeout: 5, unhealthy: 2, healthy: 2 }, awsAuthMethod: 'role' },
+      { id: 'a3', name: 'postgres-primary', runtime: 'RDS multi-AZ', regions: ['us-east-1', 'us-west-2'], mode: 'failover', checkType: 'tcp', checkSummary: 'TCP :5432', timing: { interval: 5, timeout: 2, unhealthy: 3, healthy: 2 } },
+      { id: 'a4', name: 'search-service', runtime: 'EC2 ASG', regions: ['us-east-1', 'us-west-2'], mode: 'monitor_only', checkType: 'http', checkSummary: 'GET /status : 200', timing: { interval: 15, timeout: 5, unhealthy: 3, healthy: 1 } },
+      { id: 'a5', name: 'analytics-pipeline', runtime: 'EC2 ASG', regions: ['us-east-1'], mode: 'monitor_only', checkType: 'other', checkSummary: 'Custom script', timing: { interval: 30, timeout: 10, unhealthy: 2, healthy: 1 } },
+    ],
+    rollouts: [
+      { id: 'r1', service: 'checkout-service', fromVersion: 'v2.14.0', toVersion: 'v2.15.0', status: 'active', eastPct: 100, westPct: 40, paused: false },
+      { id: 'r2', service: 'catalog-service', fromVersion: 'v4.2.1', toVersion: 'v4.3.0', status: 'active', eastPct: 65, westPct: 65, paused: false },
+      { id: 'r3', service: 'auth-service', fromVersion: 'v1.9.3', toVersion: 'v1.9.4', status: 'done', eastPct: 100, westPct: 100, paused: false },
+      { id: 'r4', service: 'search-service', fromVersion: 'v3.0.0', toVersion: 'v3.1.0', status: 'paused', eastPct: 30, westPct: 0, paused: true },
+    ],
+  };
+
+  regionsData = [
+    {
+      id: 'east', name: 'us-east-1', zone: 'primary write region', status: 'healthy',
+      trafficPct: 55, latencyMs: 84, errorRatePct: 0.12, replicationLagMs: 40, uptimePct: 99.98, version: 'v2.15.0',
+      azHealthy: '3 / 3', nodes: 142, proxies: 18, lastProbe: '4s ago',
+      deps: [
+        { name: 'Postgres', status: 'healthy' }, { name: 'Redis cache', status: 'healthy' },
+        { name: 'Kafka', status: 'healthy' }, { name: 'Envoy edge', status: 'healthy' },
+      ],
+      trend: [98, 100, 100, 99.9, 100, 99.7, 99.98],
+    },
+    {
+      id: 'west', name: 'us-west-2', zone: 'secondary write region', status: 'degraded',
+      trafficPct: 45, latencyMs: 132, errorRatePct: 1.8, replicationLagMs: 310, uptimePct: 99.4, version: 'v2.14.0',
+      azHealthy: '2 / 3', nodes: 128, proxies: 16, lastProbe: '4s ago',
+      deps: [
+        { name: 'Postgres', status: 'degraded' }, { name: 'Redis cache', status: 'healthy' },
+        { name: 'Kafka', status: 'healthy' }, { name: 'Envoy edge', status: 'degraded' },
+      ],
+      trend: [99, 98, 100, 97, 95, 96, 99.4],
+    },
+  ];
+
+  servicesData = [
+    { name: 'api-gateway', runtime: 'Envoy / EC2 ASG', east: 'healthy', west: 'healthy', skew: false, note: 'Edge health checks every 5s' },
+    { name: 'auth-service', runtime: 'EC2 ASG', east: 'healthy', west: 'healthy', skew: false, note: '' },
+    { name: 'checkout-service', runtime: 'EC2 ASG', east: 'healthy', west: 'degraded', skew: true, note: 'West on v2.14.0, east rolled to v2.15.0' },
+    { name: 'catalog-service', runtime: 'EC2 ASG', east: 'healthy', west: 'healthy', skew: false, note: '' },
+    { name: 'search-service', runtime: 'EC2 ASG', east: 'degraded', west: 'critical', skew: false, note: 'Index rebuild paused in west after 3 consecutive probe failures' },
+    { name: 'redis-cache', runtime: 'ElastiCache', east: 'healthy', west: 'healthy', skew: false, note: '' },
+    { name: 'postgres-primary', runtime: 'RDS multi-AZ', east: 'healthy', west: 'degraded', skew: false, note: 'Replication lag 310ms, above 250ms threshold' },
+    { name: 'kafka-streaming', runtime: 'MSK', east: 'healthy', west: 'healthy', skew: false, note: 'Cross-region mirroring nominal' },
+  ];
+
+  edgeCasesData = [
+    { id: 'ec1', title: 'Single dependency degraded, service otherwise healthy', description: 'A service reports healthy liveness but one dependency (e.g. cache) is degraded. The checker weights dependency health into the service score instead of a binary up/down, so partial degradation shows without a false full-outage signal.', mitigation: 'Composite health score per service; LB weight reduces proportionally, not to zero.' },
+    { id: 'ec2', title: 'Flapping health checks', description: 'A probe alternates pass/fail near a threshold, which would otherwise cause the LB to rapidly flip a region in and out of rotation.', mitigation: 'Require 3 consecutive failures (and 2 consecutive successes to recover) before changing routing weight — hysteresis, not single-probe decisions.' },
+    { id: 'ec3', title: 'Network partition between regions', description: 'us-east-1 and us-west-2 cannot see each other, but each is independently healthy to its own clients. Naive cross-region checks would both report the other as \'down\'.', mitigation: 'Health is judged locally per region against real client traffic (synthetic + real error rates), not by regions checking each other — avoids split-brain false failovers.' },
+    { id: 'ec4', title: 'DNS TTL propagation delay', description: 'On a full regional failover, clients cached at a stale DNS TTL keep sending to the pulled region for up to the TTL window.', mitigation: 'LB-level weight change (Envoy) takes effect immediately at the edge, independent of DNS; DNS TTL is kept at 30s as a backstop, not the primary mechanism.' },
+    { id: 'ec5', title: 'Cascading retries under partial degradation', description: 'Clients and internal callers retrying against a degraded-but-not-down region amplify load and can tip it into full failure.', mitigation: 'Circuit breaker + capped retry budget at the Envoy layer; degraded status disables client-side retry-to-same-region.' },
+    { id: 'ec6', title: 'Inconclusive health signal (fail-open)', description: 'Probes time out or quorum can\'t be reached — this is genuinely unknown, not confirmed-down.', mitigation: 'LB fails open on last-known-good weights for up to 10 minutes and pages on-call, rather than guessing and pulling a possibly-healthy region.' },
+  ];
+
+  incidentsData = [
+    { id: 'i1', time: '09:42', region: 'us-west-2', severity: 'critical', title: 'Postgres replication lag breach', description: 'Replication lag exceeded 250ms threshold for 3 consecutive checks. LB reduced west traffic share automatically.', status: 'ongoing' },
+    { id: 'i2', time: '09:44', region: 'us-west-2', severity: 'warning', title: 'search-service probe failures', description: 'Index rebuild job paused after repeated health probe timeouts; service marked degraded, not pulled.', status: 'ongoing' },
+    { id: 'i3', time: '08:15', region: 'both', severity: 'warning', title: 'Version skew: checkout-service', description: 'us-east-1 promoted to v2.15.0; us-west-2 rollout paused pending canary verification.', status: 'ongoing' },
+    { id: 'i4', time: 'yesterday', region: 'us-east-1', severity: 'resolved', title: 'Envoy edge flapping (AZ-1c)', description: 'Health checks flapped for ~90s during an AZ network blip. Hysteresis window prevented any routing change.', status: 'resolved' },
+    { id: 'i5', time: '2 days ago', region: 'us-west-2', severity: 'resolved', title: 'Fail-open triggered, 6m hold', description: 'Probe quorum inconclusive after an AWS network event. LB held last-known-good weights; recovered before failover threshold.', status: 'resolved' },
+  ];
+
+  sevMeta = {
+    critical: { bg: 'oklch(93% 0.045 25)', fg: 'oklch(38% 0.15 25)', dot: 'oklch(58% 0.19 25)', label: 'Critical' },
+    warning: { bg: 'var(--color-accent-100)', fg: 'var(--color-accent-800)', dot: 'var(--color-accent-500)', label: 'Warning' },
+    resolved: { bg: 'var(--color-accent-2-100)', fg: 'var(--color-accent-2-800)', dot: 'var(--color-accent-2-500)', label: 'Resolved' },
+  };
+
+  renderVals() {
+    const tabDefs = [
+      ['overview', 'Overview'], ['services', 'Services'], ['failover', 'Failover & routing'],
+      ['rollouts', 'Rollouts'], ['incidents', 'Incidents'], ['admin', 'Admin'],
+    ];
+    const tabs = tabDefs.map(([id, label]) => ({
+      label, current: this.state.activeTab === id ? 'page' : undefined,
+      onSelect: (e) => { e.preventDefault(); this.setState({ activeTab: id }); },
+    }));
+
+    const regions = this.regionsData.map(r => {
+      const st = STATUS[r.status];
+      return {
+        ...r, statusBg: st.bg, statusFg: st.fg, statusLabel: st.label,
+        deps: r.deps.map(d => ({ ...d, statusBg: STATUS[d.status].bg, statusFg: STATUS[d.status].fg })),
+        trend: r.trend.map((v, i) => ({
+          day: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i],
+          barHeight: Math.max(6, (v - 90) * 5) + 'px',
+          barColor: v >= 99 ? 'var(--color-accent-2-500)' : v >= 97 ? 'var(--color-accent-500)' : 'oklch(58% 0.19 25)',
+        })),
+        onOpen: () => this.setState({ showRegionDialog: true, selectedRegionId: r.id }),
+      };
+    });
+
+    const services = this.servicesData.map(s => {
+      const e = STATUS[s.east], w = STATUS[s.west];
+      return {
+        ...s, eastBg: e.bg, eastFg: e.fg, eastLabel: e.label, westBg: w.bg, westFg: w.fg, westLabel: w.label,
+        noSkew: !s.skew,
+      };
+    });
+
+    const edgeCases = this.edgeCasesData.map(e => ({
+      ...e, expanded: this.state.expandedEdgeCase === e.id, chevron: this.state.expandedEdgeCase === e.id ? '−' : '+',
+      onToggle: () => this.setState({ expandedEdgeCase: this.state.expandedEdgeCase === e.id ? null : e.id }),
+    }));
+
+    const severityFilters = [
+      { id: 'all', label: 'All' }, { id: 'critical', label: 'Critical' },
+      { id: 'warning', label: 'Warning' }, { id: 'resolved', label: 'Resolved' },
+    ].map(f => ({
+      label: f.label, checked: this.state.severityFilter === f.id,
+      onSelect: () => this.setState({ severityFilter: f.id }),
+    }));
+
+    const visibleIncidents = this.incidentsData
+      .filter(i => this.state.severityFilter === 'all' || i.severity === this.state.severityFilter)
+      .map(i => {
+        const m = this.sevMeta[i.severity];
+        return { ...i, sevBg: m.bg, sevFg: m.fg, dotColor: m.dot, severityLabel: m.label };
+      });
+
+    const rollouts = this.state.rollouts.map(ro => {
+      const st = ro.status === 'done' ? STATUS.healthy : ro.status === 'paused' ? STATUS.degraded : { bg: 'var(--color-neutral-200)', fg: 'var(--color-neutral-800)', label: 'In progress' };
+      return {
+        ...ro, statusBg: st.bg, statusFg: st.fg,
+        statusLabel: ro.status === 'done' ? 'Complete' : ro.paused ? 'Paused' : 'In progress',
+        pauseLabel: ro.paused ? 'Resume' : 'Pause',
+        onPause: () => this.setState({ rollouts: this.state.rollouts.map(x => x.id === ro.id ? { ...x, paused: !x.paused, status: !x.paused ? 'paused' : 'active' } : x) }),
+        onRollback: () => this.setState({ rollouts: this.state.rollouts.map(x => x.id === ro.id ? { ...x, westPct: 0, eastPct: x.eastPct, status: 'paused', paused: true } : x) }),
+      };
+    });
+
+    const selectedRegion = regions.find(r => r.id === this.state.selectedRegionId) || regions[0];
+
+    const providerLabels = { aws_native: 'AWS (Route 53 / ALB-NLB)', cloudfront: 'AWS CloudFront', avi_gslb: 'AVI GSLB', akamai_cloudlet: 'Akamai Cloudlet' };
+    const routingProviderOptions = [
+      { id: 'aws_native', label: 'AWS Route 53 / ALB-NLB' }, { id: 'cloudfront', label: 'AWS CloudFront' },
+      { id: 'avi_gslb', label: 'AVI GSLB' }, { id: 'akamai_cloudlet', label: 'Akamai Cloudlet' },
+    ].map(o => ({
+      label: o.label, checked: this.state.routingProvider === o.id,
+      onSelect: () => { if (this.state.ldapGroup === 'sre-admins') this.setState({ routingProvider: o.id }); },
+    }));
+    const rcField = (key) => (e) => this.setState({ routingConfig: { ...this.state.routingConfig, [key]: e.target.value } });
+    const raField = (provider, key) => (e) => this.setState({ routingAuth: { ...this.state.routingAuth, [provider]: { ...this.state.routingAuth[provider], [key]: e.target.value } } });
+    const raMethod = (provider) => (id) => () => this.setState({ routingAuth: { ...this.state.routingAuth, [provider]: { ...this.state.routingAuth[provider], method: id } } });
+    const authMethodOpts = (provider) => [
+      { id: 'role', label: 'Assume IAM role' }, { id: 'accesskey', label: 'Service account' }, { id: 'sso', label: 'AWS SSO' },
+    ].map(o => ({ label: o.label, checked: this.state.routingAuth[provider].method === o.id, onSelect: raMethod(provider)(o.id) }));
+
+    const modeMeta = {
+      failover: { bg: 'var(--color-accent-2-100)', fg: 'var(--color-accent-2-800)', label: 'Failover' },
+      monitor_only: { bg: 'var(--color-neutral-200)', fg: 'var(--color-neutral-800)', label: 'Monitor only' },
+    };
+    const checkLabels = { http: 'HTTP', tcp: 'TCP', alb: 'AWS ALB/NLB', grpc: 'gRPC', other: 'Custom' };
+    const adminServices = this.state.adminServices.map(a => {
+      const m = modeMeta[a.mode];
+      return {
+        ...a, regionsLabel: a.regions.join(', '), modeBg: m.bg, modeFg: m.fg, modeLabel: m.label,
+        checkLabel: checkLabels[a.checkType] + (a.checkSummary ? ' · ' + a.checkSummary : ''),
+        timingLabel: `every ${a.timing.interval}s, ${a.timing.timeout}s timeout · ${a.timing.unhealthy} down / ${a.timing.healthy} up`,
+        usesCaCert: !!a.usesCaCert,
+        awsAuthLabel: a.checkType === 'alb' && a.awsAuthMethod ? ({ role: 'IAM role', accesskey: 'Service account', sso: 'AWS SSO' })[a.awsAuthMethod] : null,
+        usesCustomSsoBinary: a.checkType === 'alb' && a.awsAuthMethod === 'sso' && !!a.awsSsoUseCustomBinary,
+        onToggleMode: () => { if (this.state.ldapGroup !== 'sre-admins') return; this.setState({ adminServices: this.state.adminServices.map(x => x.id === a.id ? { ...x, mode: x.mode === 'failover' ? 'monitor_only' : 'failover' } : x) }); },
+        onRemove: () => { if (this.state.ldapGroup !== 'sre-admins') return; this.setState({ adminServices: this.state.adminServices.filter(x => x.id !== a.id) }); },
+      };
+    });
+    const adminModeOptions = [
+      { id: 'failover', label: 'Health check + failover' }, { id: 'monitor_only', label: 'Health check only' },
+    ].map(o => ({
+      label: o.label, checked: this.state.adminForm.mode === o.id,
+      onSelect: () => this.setState({ adminForm: { ...this.state.adminForm, mode: o.id } }),
+    }));
+    const checkTypeOptions = [
+      { id: 'http', label: 'HTTP(S)' }, { id: 'tcp', label: 'TCP' }, { id: 'alb', label: 'AWS ALB/NLB' },
+      { id: 'grpc', label: 'gRPC' }, { id: 'other', label: 'Other / custom' },
+    ].map(o => ({
+      label: o.label, checked: this.state.adminForm.checkType === o.id,
+      onSelect: () => this.setState({ adminForm: { ...this.state.adminForm, checkType: o.id } }),
+    }));
+    const field = (key) => (e) => this.setState({ adminForm: { ...this.state.adminForm, [key]: e.target.value } });
+
+    return {
+      tabs,
+      isOverview: this.state.activeTab === 'overview',
+      isServices: this.state.activeTab === 'services',
+      isFailover: this.state.activeTab === 'failover',
+      isRollouts: this.state.activeTab === 'rollouts',
+      isIncidents: this.state.activeTab === 'incidents',
+      isAdmin: this.state.activeTab === 'admin',
+      ldapAllowed: this.state.ldapGroup === 'sre-admins',
+      ldapDenied: this.state.ldapGroup !== 'sre-admins',
+      ldapCurrentGroup: this.state.ldapGroup,
+      ldapSimOptions: [
+        { id: 'sre-oncall', label: 'SRE' }, { id: 'sre-admins', label: 'Admin' },
+      ].map(o => ({
+        label: o.label, checked: this.state.ldapGroup === o.id,
+        onSelect: () => this.setState({ ldapGroup: o.id }),
+      })),
+      adminCurrent: this.state.activeTab === 'admin' ? 'page' : undefined,
+      onAdminSelect: (e) => { e.preventDefault(); this.setState({ activeTab: 'admin' }); },
+      adminForm: this.state.adminForm,
+      adminServices, adminModeOptions, checkTypeOptions,
+      isCheckHttp: this.state.adminForm.checkType === 'http',
+      isCheckTcp: this.state.adminForm.checkType === 'tcp',
+      isCheckAlb: this.state.adminForm.checkType === 'alb',
+      isCheckGrpc: this.state.adminForm.checkType === 'grpc',
+      isCheckOther: this.state.adminForm.checkType === 'other',
+      showTlsSection: ['http', 'grpc', 'alb'].includes(this.state.adminForm.checkType),
+      onUseCaCertChange: (e) => this.setState({ adminForm: { ...this.state.adminForm, useCaCert: e.target.checked } }),
+      onCaCertPemChange: field('caCertPem'),
+      awsAuthOptions: [
+        { id: 'role', label: 'Assume IAM role' }, { id: 'accesskey', label: 'Service account' }, { id: 'sso', label: 'AWS SSO' },
+      ].map(o => ({
+        label: o.label, checked: this.state.adminForm.awsAuthMethod === o.id,
+        onSelect: () => this.setState({ adminForm: { ...this.state.adminForm, awsAuthMethod: o.id } }),
+      })),
+      isAwsAuthRole: this.state.adminForm.awsAuthMethod === 'role',
+      isAwsAuthKey: this.state.adminForm.awsAuthMethod === 'accesskey',
+      isAwsAuthSso: this.state.adminForm.awsAuthMethod === 'sso',
+      onAwsRoleArnChange: field('awsRoleArn'), onAwsExternalIdChange: field('awsExternalId'),
+      onAwsSecretNameChange: field('awsSecretName'),
+      onAwsSsoStartUrlChange: field('awsSsoStartUrl'), onAwsSsoRegionChange: field('awsSsoRegion'),
+      onAwsSsoAccountIdChange: field('awsSsoAccountId'), onAwsSsoRoleNameChange: field('awsSsoRoleName'),
+      onAwsSsoUseCustomBinaryChange: (e) => this.setState({ adminForm: { ...this.state.adminForm, awsSsoUseCustomBinary: e.target.checked } }),
+      onAwsSsoBinaryPathChange: field('awsSsoBinaryPath'), onAwsSsoBinaryArgsChange: field('awsSsoBinaryArgs'),
+      onHttpPathChange: field('httpPath'), onHttpPortChange: field('httpPort'), onHttpStatusChange: field('httpExpectedStatus'),
+      onTcpPortChange: field('tcpPort'),
+      onAlbTargetGroupChange: field('albTargetGroup'), onAlbKindChange: field('albKind'),
+      onGrpcServiceChange: field('grpcService'), onGrpcPortChange: field('grpcPort'),
+      onCustomCheckChange: field('customCheck'),
+      onIntervalChange: field('intervalSec'), onTimeoutChange: field('timeoutSec'),
+      onUnhealthyThresholdChange: field('unhealthyThreshold'), onHealthyThresholdChange: field('healthyThreshold'),
+      regionForm: this.state.regionForm,
+      onRegionNameChange: (e) => this.setState({ regionForm: { ...this.state.regionForm, name: e.target.value } }),
+      onRegionProviderChange: (e) => this.setState({ regionForm: { ...this.state.regionForm, provider: e.target.value } }),
+      onAddRegion: () => {
+        if (this.state.ldapGroup !== 'sre-admins') return;
+        const f = this.state.regionForm;
+        if (!f.name.trim()) return;
+        this.setState({
+          adminRegions: [...this.state.adminRegions, { id: 'rg' + Date.now(), name: f.name.trim(), provider: f.provider, editing: false, draftName: f.name.trim(), draftProvider: f.provider }],
+          regionForm: { name: '', provider: 'AWS' },
+        });
+      },
+      adminRegions: this.state.adminRegions.map(rg => ({
+        ...rg, notEditing: !rg.editing,
+        onEdit: () => { if (this.state.ldapGroup !== 'sre-admins') return; this.setState({ adminRegions: this.state.adminRegions.map(x => x.id === rg.id ? { ...x, editing: true, draftName: x.name, draftProvider: x.provider } : x) }); },
+        onCancel: () => this.setState({ adminRegions: this.state.adminRegions.map(x => x.id === rg.id ? { ...x, editing: false } : x) }),
+        onSave: () => this.setState({ adminRegions: this.state.adminRegions.map(x => x.id === rg.id ? { ...x, editing: false, name: x.draftName.trim() || x.name, provider: x.draftProvider } : x) }),
+        onRemove: () => { if (this.state.ldapGroup !== 'sre-admins') return; this.setState({ adminRegions: this.state.adminRegions.filter(x => x.id !== rg.id) }); },
+        onDraftNameChange: (e) => this.setState({ adminRegions: this.state.adminRegions.map(x => x.id === rg.id ? { ...x, draftName: e.target.value } : x) }),
+        onDraftProviderChange: (e) => this.setState({ adminRegions: this.state.adminRegions.map(x => x.id === rg.id ? { ...x, draftProvider: e.target.value } : x) }),
+      })),
+      onAdminNameChange: (e) => this.setState({ adminForm: { ...this.state.adminForm, name: e.target.value } }),
+      onAdminRuntimeChange: (e) => this.setState({ adminForm: { ...this.state.adminForm, runtime: e.target.value } }),
+      onAdminEastToggle: (e) => this.setState({ adminForm: { ...this.state.adminForm, east: e.target.checked } }),
+      onAdminWestToggle: (e) => this.setState({ adminForm: { ...this.state.adminForm, west: e.target.checked } }),
+      onAddService: () => {
+        if (this.state.ldapGroup !== 'sre-admins') return;
+        const f = this.state.adminForm;
+        if (!f.name.trim()) return;
+        const regions = [f.east && 'us-east-1', f.west && 'us-west-2'].filter(Boolean);
+        const summaries = {
+          http: `${f.httpPath || '/'} : ${f.httpExpectedStatus || '200'} (:${f.httpPort || '443'})`,
+          tcp: `TCP :${f.tcpPort || '—'}`,
+          alb: `${f.albKind} target group`,
+          grpc: `${f.grpcService || 'grpc.health'} (:${f.grpcPort || '—'})`,
+          other: f.customCheck || 'Custom check',
+        };
+        this.setState({
+          adminServices: [...this.state.adminServices, {
+            id: 'a' + Date.now(), name: f.name.trim(), runtime: f.runtime.trim() || 'EC2 ASG',
+            regions: regions.length ? regions : ['us-east-1'], mode: f.mode,
+            checkType: f.checkType, checkSummary: summaries[f.checkType],
+            timing: {
+              interval: Number(f.intervalSec) || 5, timeout: Number(f.timeoutSec) || 3,
+              unhealthy: Number(f.unhealthyThreshold) || 3, healthy: Number(f.healthyThreshold) || 2,
+            },
+            usesCaCert: ['http', 'grpc', 'alb'].includes(f.checkType) && f.useCaCert && !!f.caCertPem.trim(),
+            awsAuthMethod: f.checkType === 'alb' ? f.awsAuthMethod : null,
+            awsSsoUseCustomBinary: f.checkType === 'alb' && f.awsAuthMethod === 'sso' && f.awsSsoUseCustomBinary,
+            awsSsoBinaryPath: f.awsSsoBinaryPath, awsSsoBinaryArgs: f.awsSsoBinaryArgs,
+          }],
+          adminForm: {
+            name: '', runtime: '', east: true, west: true, mode: 'failover', checkType: 'http',
+            httpPath: '/healthz', httpPort: '443', httpExpectedStatus: '200',
+            tcpPort: '', albTargetGroup: '', albKind: 'ALB', grpcService: '', grpcPort: '', customCheck: '',
+            intervalSec: '5', timeoutSec: '3', unhealthyThreshold: '3', healthyThreshold: '2',
+            useCaCert: false, caCertPem: '',
+            awsAuthMethod: 'role', awsRoleArn: '', awsExternalId: '', awsSecretName: '',
+            awsSsoStartUrl: '', awsSsoRegion: '', awsSsoAccountId: '', awsSsoRoleName: '',
+            awsSsoUseCustomBinary: false, awsSsoBinaryPath: '', awsSsoBinaryArgs: '',
+          },
+        });
+      },
+      bannerVisible: this.state.bannerVisible,
+      dismissBanner: () => this.setState({ bannerVisible: false }),
+      regions, services, edgeCases, severityFilters, visibleIncidents, rollouts,
+      lbEast: this.state.lbEast, lbWest: this.state.lbWest,
+      onLbEastChange: (e) => { const v = Number(e.target.value); this.setState({ lbEast: v, lbWest: 100 - v }); },
+      onLbWestChange: (e) => { const v = Number(e.target.value); this.setState({ lbWest: v, lbEast: 100 - v }); },
+      resetWeights: () => this.setState({ lbEast: 55, lbWest: 45 }),
+      openFailoverConfirm: () => this.setState({ showFailoverConfirm: true }),
+      closeFailoverConfirm: () => this.setState({ showFailoverConfirm: false }),
+      confirmFailover: () => this.setState({ showFailoverConfirm: false, lbEast: 0, lbWest: 100, bannerVisible: true }),
+      showFailoverConfirm: this.state.showFailoverConfirm,
+      routingProviderOptions, routingConfig: this.state.routingConfig,
+      routingProviderLabel: providerLabels[this.state.routingProvider],
+      isProviderAwsNative: this.state.routingProvider === 'aws_native',
+      isProviderCloudfront: this.state.routingProvider === 'cloudfront',
+      isProviderAvi: this.state.routingProvider === 'avi_gslb',
+      isProviderAkamai: this.state.routingProvider === 'akamai_cloudlet',
+      onCfDistributionIdChange: rcField('cfDistributionId'), onCfOriginGroupIdChange: rcField('cfOriginGroupId'),
+      onAviGslbServiceChange: rcField('aviGslbService'), onAviControllerUrlChange: rcField('aviControllerUrl'),
+      onAkamaiPolicyIdChange: rcField('akamaiPolicyId'), onAkamaiHostnameChange: rcField('akamaiHostname'),
+      routingAuth: this.state.routingAuth,
+      awsNativeAuthOptions: authMethodOpts('awsNative'),
+      isAwsNativeAuthRole: this.state.routingAuth.awsNative.method === 'role',
+      isAwsNativeAuthKey: this.state.routingAuth.awsNative.method === 'accesskey',
+      isAwsNativeAuthSso: this.state.routingAuth.awsNative.method === 'sso',
+      onAwsNativeRoleArnChange: raField('awsNative', 'roleArn'), onAwsNativeExternalIdChange: raField('awsNative', 'externalId'),
+      onAwsNativeSecretNameChange: raField('awsNative', 'secretName'),
+      onAwsNativeSsoStartUrlChange: raField('awsNative', 'ssoStartUrl'), onAwsNativeSsoAccountIdChange: raField('awsNative', 'ssoAccountId'), onAwsNativeSsoRoleNameChange: raField('awsNative', 'ssoRoleName'),
+      cloudfrontAuthOptions: authMethodOpts('cloudfront'),
+      isCfAuthRole: this.state.routingAuth.cloudfront.method === 'role',
+      isCfAuthKey: this.state.routingAuth.cloudfront.method === 'accesskey',
+      isCfAuthSso: this.state.routingAuth.cloudfront.method === 'sso',
+      onCfRoleArnChange: raField('cloudfront', 'roleArn'), onCfExternalIdChange: raField('cloudfront', 'externalId'),
+      onCfSecretNameChange: raField('cloudfront', 'secretName'),
+      onCfSsoStartUrlChange: raField('cloudfront', 'ssoStartUrl'), onCfSsoAccountIdChange: raField('cloudfront', 'ssoAccountId'), onCfSsoRoleNameChange: raField('cloudfront', 'ssoRoleName'),
+      onAviUsernameChange: raField('avi', 'username'), onAviSecretPathChange: raField('avi', 'secretPath'),
+      onAkamaiSecretPathChange: raField('akamai', 'secretPath'),
+      failoverButtonLabel: `Trigger manual failover to west via ${providerLabels[this.state.routingProvider]}`,
+      allRoutingEndpoints: (() => {
+        const ra = this.state.routingAuth, rc = this.state.routingConfig;
+        const authSummary = (a) => a.method === 'role' ? (a.roleArn ? `IAM role: ${a.roleArn}` : 'IAM role (not set)')
+          : a.method === 'accesskey' ? (a.secretName ? `Service account: ${a.secretName}` : 'Service account (not set)')
+          : (a.ssoStartUrl ? `AWS SSO: ${a.ssoStartUrl}` : 'AWS SSO (not set)');
+        const rows = [
+          { id: 'aws_native', label: 'AWS Route 53 / ALB-NLB', configSummary: 'Route 53 + ALB/NLB target groups', authSummary: authSummary(ra.awsNative), configured: true },
+          { id: 'cloudfront', label: 'AWS CloudFront', configSummary: rc.cfDistributionId ? `${rc.cfDistributionId} · ${rc.cfOriginGroupId || 'no origin group'}` : 'Not configured', authSummary: authSummary(ra.cloudfront), configured: !!rc.cfDistributionId },
+          { id: 'avi_gslb', label: 'AVI GSLB', configSummary: rc.aviGslbService ? `${rc.aviGslbService} · ${rc.aviControllerUrl || 'no controller URL'}` : 'Not configured', authSummary: ra.avi.secretPath ? `${ra.avi.username || 'user'} · ${ra.avi.secretPath}` : 'Not set', configured: !!rc.aviGslbService },
+          { id: 'akamai_cloudlet', label: 'Akamai Cloudlet', configSummary: rc.akamaiPolicyId ? `Policy ${rc.akamaiPolicyId} · ${rc.akamaiHostname || 'no hostname'}` : 'Not configured', authSummary: ra.akamai.secretPath || 'Not set', configured: !!rc.akamaiPolicyId },
+        ];
+        return rows.map(r => {
+          const isActive = this.state.routingProvider === r.id;
+          const st = isActive ? { bg: 'var(--color-accent-2-100)', fg: 'var(--color-accent-2-800)', label: 'Active' }
+            : r.configured ? { bg: 'var(--color-neutral-200)', fg: 'var(--color-neutral-800)', label: 'Configured' }
+            : { bg: 'var(--color-neutral-100)', fg: 'var(--color-neutral-600)', label: 'Not configured' };
+          return { ...r, statusBg: st.bg, statusFg: st.fg, statusLabel: st.label };
+        });
+      })(),
+      goToAdminRouting: (e) => { e.preventDefault(); this.setState({ activeTab: 'admin' }); },
+      showRegionDialog: this.state.showRegionDialog,
+      selectedRegion,
+      closeRegionDialog: () => this.setState({ showRegionDialog: false }),
+      stopClick: (e) => e.stopPropagation(),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

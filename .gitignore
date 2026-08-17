@@ -1,0 +1,20 @@
+# Build output
+bin/
+web/dist/
+web/node_modules/
+web/tsconfig.tsbuildinfo
+web/vite.config.ts.timestamp-*.mjs
+*.test
+
+# Local config
+.env
+.env.local
+
+# Design handoff archive (the extracted contents live in design/)
+*.zip
+
+# Editor and OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
