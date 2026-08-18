@@ -23,6 +23,67 @@ type Probe interface {
 	Run(ctx context.Context) (models.Status, time.Duration, string, error)
 }
 
+// LatencyPolicy decides whether a successful-but-slow response counts as
+// degraded.
+//
+// Opt-in, and off by default. Latency is always recorded — on the probe result
+// and in hcr_probe_duration_seconds — but only influences a target's *status*,
+// and therefore traffic, when DegradedAboveMs is set.
+//
+// BaselineMs is what makes the option safe from any vantage point. Elapsed time
+// measures the service plus the network path to it, and the path is a property
+// of where the probe runs rather than of the service's health. Probing
+// us-east-1 from another region adds tens of milliseconds of RTT to every
+// sample; without a baseline, a threshold calibrated in-region fires
+// permanently and sheds traffic from a service that is behaving perfectly.
+//
+// Set BaselineMs to the known network floor between this probe and this region
+// — the p50 of a trivial request, or what a dedicated latency agent reports as
+// the path minimum. The comparison then runs against time attributable to the
+// service.
+type LatencyPolicy struct {
+	// DegradedAboveMs is the threshold above the baseline. Zero disables
+	// latency-based degradation entirely.
+	DegradedAboveMs int
+	// BaselineMs is subtracted from every measurement before comparison.
+	BaselineMs int
+}
+
+// Enabled reports whether this policy can produce a degraded status.
+func (p LatencyPolicy) Enabled() bool { return p.DegradedAboveMs > 0 }
+
+// ServiceTime returns the portion of elapsed attributable to the service,
+// never negative — a sample faster than the configured baseline means the
+// baseline is too high, not that the service took negative time.
+func (p LatencyPolicy) ServiceTime(elapsed time.Duration) time.Duration {
+	adjusted := elapsed - time.Duration(p.BaselineMs)*time.Millisecond
+	if adjusted < 0 {
+		return 0
+	}
+	return adjusted
+}
+
+// Degraded reports whether elapsed should downgrade an otherwise healthy
+// response.
+func (p LatencyPolicy) Degraded(elapsed time.Duration) bool {
+	if !p.Enabled() {
+		return false
+	}
+	return p.ServiceTime(elapsed) > time.Duration(p.DegradedAboveMs)*time.Millisecond
+}
+
+// Describe renders the policy for a probe detail line, so an operator seeing
+// "degraded" can tell what it was measured against.
+func (p LatencyPolicy) Describe(elapsed time.Duration) string {
+	if p.BaselineMs <= 0 {
+		return fmt.Sprintf("%dms, above the %dms threshold",
+			elapsed.Milliseconds(), p.DegradedAboveMs)
+	}
+	return fmt.Sprintf("%dms total, %dms after the %dms baseline, above the %dms threshold",
+		elapsed.Milliseconds(), p.ServiceTime(elapsed).Milliseconds(),
+		p.BaselineMs, p.DegradedAboveMs)
+}
+
 // Target is one (service, region) pair to probe.
 type Target struct {
 	ServiceID string
@@ -49,9 +110,9 @@ type HTTPProbe struct {
 	URL            string
 	ExpectedStatus int
 	Client         *http.Client
-	// DegradedAboveMs marks a slow-but-successful response as degraded rather
-	// than healthy. Zero disables the check.
-	DegradedAboveMs int
+	// Latency optionally downgrades a slow-but-successful response. Disabled
+	// unless DegradedAboveMs is set.
+	Latency LatencyPolicy
 }
 
 // Run issues the request and classifies the response.
@@ -80,9 +141,9 @@ func (p *HTTPProbe) Run(ctx context.Context) (models.Status, time.Duration, stri
 		return models.StatusCritical, elapsed,
 			fmt.Sprintf("HTTP %d, want %d", resp.StatusCode, want), nil
 	}
-	if p.DegradedAboveMs > 0 && elapsed > time.Duration(p.DegradedAboveMs)*time.Millisecond {
+	if p.Latency.Degraded(elapsed) {
 		return models.StatusDegraded, elapsed,
-			fmt.Sprintf("HTTP %d but slow (%dms)", resp.StatusCode, elapsed.Milliseconds()), nil
+			fmt.Sprintf("HTTP %d but slow: %s", resp.StatusCode, p.Latency.Describe(elapsed)), nil
 	}
 	return models.StatusHealthy, elapsed, fmt.Sprintf("HTTP %d", resp.StatusCode), nil
 }
@@ -121,6 +182,9 @@ type GRPCProbe struct {
 	Address string
 	Service string
 	Client  *http.Client
+	// Latency optionally downgrades a slow-but-serving response, on the same
+	// terms as the HTTP probe.
+	Latency LatencyPolicy
 }
 
 // Run performs the health RPC.
@@ -148,6 +212,9 @@ func (p *GRPCProbe) Run(ctx context.Context) (models.Status, time.Duration, stri
 	}
 	if resp.StatusCode != http.StatusOK {
 		return models.StatusCritical, elapsed, fmt.Sprintf("HTTP %d", resp.StatusCode), nil
+	}
+	if p.Latency.Degraded(elapsed) {
+		return models.StatusDegraded, elapsed, "SERVING but slow: " + p.Latency.Describe(elapsed), nil
 	}
 	return models.StatusHealthy, elapsed, "SERVING", nil
 }

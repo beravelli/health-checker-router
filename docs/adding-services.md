@@ -57,23 +57,54 @@ The default. Issues `GET {endpoint}{path}` and compares the status code.
 | --- | --- |
 | `path` | Defaults to `/healthz` |
 | `expectedStatus` | Defaults to `200` |
-| `degradedAboveMs` | Optional, and **calibrate it against where the probe runs** — see below. A response slower than this is *degraded*, not healthy |
+| `degradedAboveMs` | Optional, off by default. A response slower than this is *degraded*, not healthy. Pair it with `latencyBaselineMs` — see below |
+| `latencyBaselineMs` | Optional. Network floor between the probe and this region, subtracted before the threshold is applied |
 
 A transport error (connection refused, TLS failure, timeout) is recorded as
 **unknown**, not critical. See [Unknown vs critical](#unknown-is-not-critical).
 
-> **`degradedAboveMs` and probe placement.** This threshold turns latency into a
-> `degraded` status, which scores 0.5 instead of 1.0 and sheds traffic. It
-> therefore measures the *path* as much as the service. A value tuned while
-> probing from inside the region will fire permanently once the checker runs
-> from elsewhere, because every measurement then carries inter-region RTT —
-> a standing false degradation that quietly moves traffic for no reason.
->
-> Leave it unset unless you have deliberately recalibrated for the probe's
-> actual vantage point. Latency as a *performance* signal is better served by
-> dedicated per-region agents that have nothing to do with failover; this field
-> exists to catch a service that is pathologically slow, not to measure
-> milliseconds.
+#### Using latency as a health signal
+
+Off by default, and worth switching on deliberately rather than by habit.
+
+The problem with a bare threshold is that elapsed time measures the service
+*plus the network path to it*, and the path is a property of where the probe
+runs — not of the service's health. A 100ms threshold calibrated while probing
+in-region fires on every sample once the probe moves elsewhere and each
+measurement carries ~70ms of RTT. The result is a standing false degradation:
+score drops to 0.5, traffic sheds, and nothing is actually wrong.
+
+`latencyBaselineMs` fixes that by subtracting the path before comparing:
+
+```json
+{
+  "path": "/healthz",
+  "degradedAboveMs": 100,
+  "latencyBaselineMs": 70
+}
+```
+
+A 200ms response is judged as 130ms of service time — degraded. A 150ms
+response is judged as 80ms — healthy. Same threshold, correct from any vantage
+point.
+
+**Calibrating the baseline.** Take the p50 of a trivial request from the probe
+to the region and round down. If you run dedicated per-region latency agents,
+their reported path minimum is exactly this number. Round down rather than up:
+too high a baseline hides real slowness, too low merely makes the check
+slightly conservative.
+
+Setting only `latencyBaselineMs` does nothing — the threshold is what enables
+the feature. Setting only `degradedAboveMs` works, and is correct when the probe
+sits on the same network as the target.
+
+**What it will not do.** Latency only ever downgrades an otherwise healthy
+response; a fast 500 is still critical. And a response slower than
+`PROBE_TIMEOUT` becomes `unknown`, not `critical` — the probe could not
+complete, so the system treats it as inconclusive and lets fail-open decide
+rather than tripping on it.
+
+Applies to `http` and `grpc` probes.
 
 ### TCP
 

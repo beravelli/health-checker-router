@@ -324,10 +324,10 @@ func (r *Runner) buildTarget(svc models.Service, sr models.ServiceRegion) (Targe
 			return t, err
 		}
 		t.Probe = &HTTPProbe{
-			URL:             url,
-			ExpectedStatus:  cfgInt(svc.ProbeConfig, "expectedStatus", http.StatusOK),
-			Client:          client,
-			DegradedAboveMs: cfgInt(svc.ProbeConfig, "degradedAboveMs", 0),
+			URL:            url,
+			ExpectedStatus: cfgInt(svc.ProbeConfig, "expectedStatus", http.StatusOK),
+			Client:         client,
+			Latency:        latencyPolicy(svc.ProbeConfig),
 		}
 
 	case models.ProbeTCP:
@@ -353,6 +353,7 @@ func (r *Runner) buildTarget(svc models.Service, sr models.ServiceRegion) (Targe
 			Address: sr.Endpoint,
 			Service: cfgString(svc.ProbeConfig, "grpcService", ""),
 			Client:  client,
+			Latency: latencyPolicy(svc.ProbeConfig),
 		}
 
 	case models.ProbeALB, models.ProbeNLB:
@@ -380,6 +381,19 @@ func (r *Runner) buildTarget(svc models.Service, sr models.ServiceRegion) (Targe
 	}
 
 	return t, nil
+}
+
+// latencyPolicy reads the opt-in latency configuration for a service.
+//
+// Both fields default to zero, which disables latency-based degradation. That
+// default is deliberate: the threshold measures the network path as much as the
+// service, so switching it on without also setting a baseline appropriate to
+// where the probe runs is a common way to shed traffic for no reason.
+func latencyPolicy(cfg map[string]any) LatencyPolicy {
+	return LatencyPolicy{
+		DegradedAboveMs: cfgInt(cfg, "degradedAboveMs", 0),
+		BaselineMs:      cfgInt(cfg, "latencyBaselineMs", 0),
+	}
 }
 
 // httpURL assembles the probe URL from the region endpoint and probe config.

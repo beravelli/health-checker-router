@@ -64,12 +64,17 @@ to sit inside a monitored region is an availability and reachability question,
 not an accuracy one.
 
 **Consequence for configuration:** `degradedAboveMs` turns probe latency into a
-`degraded` status, which scores 0.5 instead of 1.0 and sheds traffic. A
-threshold calibrated for in-region probing will fire permanently once the probe
-runs cross-region, because every measurement now carries inter-region RTT — a
-standing false degradation that quietly moves traffic. Either raise the
-threshold to suit the new vantage point or unset it and let dedicated latency
-agents own that signal. Unset is the better default here.
+`degraded` status, which scores 0.5 instead of 1.0 and sheds traffic. Because
+elapsed time includes the path, a threshold calibrated for in-region probing
+fires permanently once the probe runs cross-region — a standing false
+degradation that quietly moves traffic.
+
+Latency remains available as a health signal, made vantage-independent by
+`latencyBaselineMs`, which subtracts the known path RTT before the threshold is
+applied. Both fields default to zero, so the signal is off until deliberately
+configured. Dedicated per-region latency agents remain the better source for
+latency as a *performance* metric; this is for catching a service that has
+become pathologically slow.
 
 ### 2. The decision plane is single-writer, and deliberately not active-active
 

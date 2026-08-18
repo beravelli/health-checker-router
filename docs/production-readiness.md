@@ -161,16 +161,17 @@ Probing from outside is fine, and arguably better, because it exercises the same
 path customer traffic takes. What is missing is a *second* path, not a closer
 one.
 
-### 4a. `degradedAboveMs` is miscalibrated for cross-region probing
+### 4a. Latency as a health signal is opt-in — configure it deliberately
 
-A slow-but-successful response becomes `degraded`, which scores 0.5 and sheds
-traffic. Any threshold tuned while probing in-region will fire permanently once
-the probe runs from another region, because every measurement now includes
-inter-region RTT. The result is a standing false degradation that quietly moves
-traffic for no reason.
+`degradedAboveMs` turns a slow-but-successful response into `degraded`, which
+scores 0.5 and sheds traffic. It measures the network path as much as the
+service, so a threshold tuned while probing in-region fires permanently once the
+probe runs from elsewhere.
 
-Unset it unless you have deliberately recalibrated for the new vantage point.
-Latency belongs to dedicated per-region agents, not to the failover signal.
+`latencyBaselineMs` subtracts the known path RTT before the comparison, which
+makes the option correct from any vantage point. Both default to zero, so
+latency affects nothing until you switch it on. See
+[adding-services.md](adding-services.md) for calibration.
 
 ### 5. Operational gaps
 

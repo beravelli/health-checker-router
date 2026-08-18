@@ -10,6 +10,22 @@ import type {
   Service,
 } from '../lib/types'
 
+// applyLatency adds the opt-in latency fields only when a threshold is set.
+//
+// A baseline alone does nothing server-side, and writing degradedAboveMs: 0
+// would read as "configured, disabled" rather than "not configured". Blank
+// means absent.
+function applyLatency(cfg: Record<string, unknown>, form: { degradedAboveMs: string; latencyBaselineMs: string }) {
+  const threshold = Number(form.degradedAboveMs)
+  if (!form.degradedAboveMs.trim() || !Number.isFinite(threshold) || threshold <= 0) return
+  cfg.degradedAboveMs = threshold
+
+  const baseline = Number(form.latencyBaselineMs)
+  if (form.latencyBaselineMs.trim() && Number.isFinite(baseline) && baseline > 0) {
+    cfg.latencyBaselineMs = baseline
+  }
+}
+
 const PROVIDER_LABEL: Record<RoutingProviderId, string> = {
   aws_native: 'AWS Route 53 / ALB-NLB',
   cloudfront: 'AWS CloudFront',
@@ -79,6 +95,8 @@ interface FormState {
   endpoints: Record<string, string>
   httpPath: string
   expectedStatus: string
+  degradedAboveMs: string
+  latencyBaselineMs: string
   tcpPort: string
   targetGroupArn: string
   grpcService: string
@@ -105,6 +123,8 @@ function emptyForm(regions: Region[]): FormState {
     endpoints: Object.fromEntries(regions.map((r) => [r.id, ''])),
     httpPath: '/healthz',
     expectedStatus: '200',
+    degradedAboveMs: '',
+    latencyBaselineMs: '',
     tcpPort: '',
     targetGroupArn: '',
     grpcService: 'grpc.health.v1.Health',
@@ -179,6 +199,7 @@ export function Admin({
       case 'http':
         probeConfig.path = form.httpPath
         probeConfig.expectedStatus = Number(form.expectedStatus) || 200
+        applyLatency(probeConfig, form)
         break
       case 'tcp':
         probeConfig.port = Number(form.tcpPort) || 0
@@ -190,6 +211,7 @@ export function Admin({
         break
       case 'grpc':
         probeConfig.grpcService = form.grpcService
+        applyLatency(probeConfig, form)
         break
       case 'custom':
         probeConfig.command = form.customCommand
@@ -418,6 +440,33 @@ export function Admin({
                 type="number"
                 value={form.expectedStatus}
                 onChange={(e) => set('expectedStatus', e.target.value)}
+              />
+            </Field>
+          </div>
+        ) : null}
+
+        {form.probeType === 'http' || form.probeType === 'grpc' ? (
+          <div className="grid-2">
+            <Field
+              label="Degrade above (ms)"
+              hint="Optional. Blank leaves latency out of the health signal entirely."
+            >
+              <input
+                type="number"
+                value={form.degradedAboveMs}
+                onChange={(e) => set('degradedAboveMs', e.target.value)}
+                placeholder="off"
+              />
+            </Field>
+            <Field
+              label="Latency baseline (ms)"
+              hint="Network floor from the probe to this region, subtracted before the threshold applies."
+            >
+              <input
+                type="number"
+                value={form.latencyBaselineMs}
+                onChange={(e) => set('latencyBaselineMs', e.target.value)}
+                placeholder="0"
               />
             </Field>
           </div>
