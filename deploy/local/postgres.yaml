@@ -1,0 +1,82 @@
+# Minimal Postgres for local evaluation. Single replica, emptyDir storage,
+# password in plaintext — everything you would not do in production, chosen so
+# the walkthrough has no dependencies beyond the cluster itself.
+#
+# Data is lost when the pod restarts. That is deliberate: `kubectl delete pod`
+# gives you a clean database, and the Helm pre-upgrade hook reapplies the
+# schema on the next release.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: health-checker-db
+  namespace: health-checker
+stringData:
+  # Consumed by the API (DATABASE_URL) and by the goose migration Job
+  # (GOOSE_DBSTRING). The chart reads the key name from secrets.databaseSecretKey.
+  url: postgres://health_checker:localdev@postgres:5432/health_checker?sslmode=disable
+  password: localdev
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: health-checker
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: health-checker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_DB
+              value: health_checker
+            - name: POSTGRES_USER
+              value: health_checker
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: health-checker-db
+                  key: password
+            # The image refuses to initialise into a non-empty mount without
+            # this when the volume has lost+found or similar.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "health_checker", "-d", "health_checker"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          emptyDir: {}

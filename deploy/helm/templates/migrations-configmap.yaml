@@ -10,7 +10,21 @@ metadata:
     "helm.sh/hook-weight": "-10"
     "helm.sh/hook-delete-policy": before-hook-creation
 data:
-  {{- range $path, $_ := .Files.Glob "../../db/migrations/*.sql" }}
+  {{- /*
+  Globbed from inside the chart, not from ../../db/migrations. Helm's .Files is
+  sandboxed to the chart directory: a parent-relative glob matches nothing and
+  renders an empty ConfigMap, so the migration Job would report success against
+  an empty directory and leave the schema absent.
+
+  deploy/helm/migrations is a synced copy of the canonical db/migrations. Run
+  `make helm-sync-migrations` after adding a migration; `make check` verifies
+  the two are identical.
+  */}}
+  {{- $files := .Files.Glob "migrations/*.sql" }}
+  {{- if not $files }}
+  {{- fail "No migrations found in the chart. Run `make helm-sync-migrations`, or set migrations.enabled=false and apply the schema yourself." }}
+  {{- end }}
+  {{- range $path, $_ := $files }}
   {{ base $path }}: |
 {{ $.Files.Get $path | indent 4 }}
   {{- end }}

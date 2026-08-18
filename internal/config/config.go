@@ -18,6 +18,11 @@ type Config struct {
 	Addr        string
 	DatabaseURL string
 
+	// WebDir is the directory holding the built console bundle. The container
+	// image ships it at /app/web; empty disables static serving, which is what
+	// you want when running the frontend from the Vite dev server.
+	WebDir string
+
 	// Probing defaults, overridable per service in Admin.
 	ProbeInterval    time.Duration
 	ProbeTimeout     time.Duration
@@ -71,6 +76,7 @@ func Load() (*Config, error) {
 	c := &Config{
 		Addr:               env("HTTP_ADDR", ":8080"),
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		WebDir:             env("WEB_DIR", "/app/web"),
 		ProbeInterval:      envDuration("PROBE_INTERVAL", 5*time.Second),
 		ProbeTimeout:       envDuration("PROBE_TIMEOUT", 3*time.Second),
 		FailuresToTrip:     envInt("FAILURES_TO_TRIP", 3),

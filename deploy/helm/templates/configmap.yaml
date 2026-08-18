@@ -1,3 +1,15 @@
+{{- /*
+Catch the two auth misconfigurations at render time rather than as a pod
+crashloop: config.Load refuses to start without LDAP_URL unless AUTH_DISABLED
+is set, and enabling both would silently bypass the LDAP gate that is
+configured.
+*/ -}}
+{{- if and .Values.config.authDisabled .Values.config.ldapURL }}
+{{- fail "config.authDisabled and config.ldapURL are both set. Auth-disabled mode bypasses LDAP entirely; pick one." }}
+{{- end }}
+{{- if and (not .Values.config.authDisabled) (not .Values.config.ldapURL) }}
+{{- fail "Set config.ldapURL (and the other LDAP values), or config.authDisabled=true for local evaluation. The API refuses to start with neither." }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,6 +18,15 @@ metadata:
     {{- include "hcr.labels" . | nindent 4 }}
 data:
   LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  WEB_DIR: {{ .Values.config.webDir | quote }}
+  {{- if .Values.config.authDisabled }}
+  # Local evaluation only. Every request runs as DEV_USER with DEV_GROUPS, so
+  # the admin gate is not enforced. values.yaml refuses to render this
+  # alongside an LDAP URL.
+  AUTH_DISABLED: "true"
+  DEV_USER: {{ .Values.config.devUser | quote }}
+  DEV_GROUPS: {{ .Values.config.devGroups | quote }}
+  {{- end }}
   PROBE_INTERVAL: {{ .Values.config.probeInterval | quote }}
   PROBE_TIMEOUT: {{ .Values.config.probeTimeout | quote }}
   FAILURES_TO_TRIP: {{ .Values.config.failuresToTrip | quote }}

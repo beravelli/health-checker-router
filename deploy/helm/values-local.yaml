@@ -1,0 +1,60 @@
+# Local evaluation on a single-node cluster (Docker Desktop, kind, minikube).
+#
+# NOT a production overlay. Auth is disabled, the database password is in
+# plaintext, and there is one replica with no disruption budget. See
+# docs/local-deploy.md for the full walkthrough.
+
+# hcr.fullname is always "<release>-<chart>", so a release named health-checker
+# would produce health-checker-health-checker-router on every resource. Pin the
+# name so the kubectl commands in the playbook stay readable.
+fullnameOverride: health-checker
+
+replicaCount: 1
+
+image:
+  repository: health-checker-router
+  tag: dev
+  # The image is built locally and never pushed, so the cluster must not try to
+  # pull it. Docker Desktop shares its image store with the kubelet; on kind or
+  # minikube you must load the image explicitly first.
+  pullPolicy: IfNotPresent
+
+config:
+  logLevel: debug
+  # Every request runs as devUser with admin rights. Acceptable only because
+  # this cluster cannot reach production infrastructure.
+  authDisabled: true
+  devUser: dev@localhost
+  devGroups: sre-admins
+  # The console is served from the same origin as the API, so no cross-origin
+  # grant is needed. Add http://localhost:5173 if you run the Vite dev server
+  # against this backend instead.
+  corsOrigins: ""
+
+# One replica cannot satisfy a PDB during a drain, and there is nothing to
+# spread across on a single node.
+podDisruptionBudget:
+  enabled: false
+
+# The HPA needs metrics-server, which single-node dev clusters usually lack.
+autoscaling:
+  enabled: false
+
+# Docker Desktop's default CNI does not enforce NetworkPolicy, so this is inert
+# there. Left off so the manifest matches what the cluster actually does.
+networkPolicy:
+  enabled: false
+
+ingress:
+  enabled: false
+
+# Relaxed so the pod schedules on a laptop alongside everything else.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 512Mi
+
+migrations:
+  enabled: true

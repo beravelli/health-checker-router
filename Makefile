@@ -65,13 +65,42 @@ run: ## Run the API locally with auth disabled
 docker: ## Build the container image
 	docker build -t $(IMAGE):$(TAG) .
 
+.PHONY: helm-sync-migrations
+helm-sync-migrations: ## Copy db/migrations into the chart (Helm cannot read outside it)
+	@mkdir -p deploy/helm/migrations
+	@rm -f deploy/helm/migrations/*.sql
+	@cp db/migrations/*.sql deploy/helm/migrations/
+	@echo "synced $$(ls -1 deploy/helm/migrations/*.sql | wc -l | tr -d ' ') migrations into the chart"
+
+.PHONY: helm-check-migrations
+helm-check-migrations: ## Fail if the chart's migration copy has drifted
+	@diff -r db/migrations deploy/helm/migrations >/dev/null 2>&1 || { \
+		echo "ERROR: deploy/helm/migrations differs from db/migrations."; \
+		echo "Run 'make helm-sync-migrations' and commit the result."; \
+		diff -r db/migrations deploy/helm/migrations || true; \
+		exit 1; }
+	@echo "chart migrations match db/migrations"
+
 .PHONY: helm-lint
-helm-lint: ## Lint the Helm chart
-	helm lint deploy/helm
+helm-lint: helm-check-migrations ## Lint the Helm chart
+	helm lint deploy/helm --values deploy/helm/values-local.yaml
 
 .PHONY: helm-template
-helm-template: ## Render the chart to stdout
-	helm template health-checker deploy/helm
+helm-template: helm-check-migrations ## Render the chart to stdout
+	helm template health-checker deploy/helm --values deploy/helm/values-local.yaml
+
+.PHONY: local-up
+local-up: docker helm-sync-migrations ## Build the image and install the chart on the local cluster
+	helm upgrade --install health-checker deploy/helm \
+		--namespace health-checker --create-namespace \
+		--values deploy/helm/values-local.yaml \
+		--set image.tag=$(TAG) \
+		--wait --timeout 5m
+
+.PHONY: local-down
+local-down: ## Remove the local release and its namespace
+	-helm uninstall health-checker --namespace health-checker
+	-kubectl delete namespace health-checker
 
 .PHONY: check
-check: vet test web-build ## Everything CI runs
+check: vet test helm-check-migrations web-build ## Everything CI runs

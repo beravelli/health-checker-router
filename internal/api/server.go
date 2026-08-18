@@ -117,6 +117,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/admin/routing/{provider}", s.requireAdmin(s.handleUpsertRouting))
 	mux.HandleFunc("GET /api/admin/audit", s.requireAdmin(s.handleAudit))
 
+	// The console bundle, on everything the API did not claim. Registered last
+	// and rooted at "/" so it is the lowest-precedence pattern in the mux.
+	if s.cfg.WebDir != "" {
+		mux.Handle("/", staticHandler(s.cfg.WebDir))
+	}
+
 	// Order matters: recover outermost, then logging, CORS, and finally auth.
 	return s.recoverPanic(s.requestLogger(s.cors(s.authenticate(mux))))
 }

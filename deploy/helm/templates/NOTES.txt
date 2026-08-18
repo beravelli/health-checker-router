@@ -1,0 +1,41 @@
+{{ .Chart.Name }} {{ .Chart.AppVersion }} installed as {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+
+Watch the rollout:
+
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "hcr.fullname" . }}
+
+{{- if .Values.ingress.enabled }}
+
+Reach the console at:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+
+Ingress is disabled. Port-forward to reach the console:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "hcr.fullname" . }} 8080:{{ .Values.service.port }}
+
+Then open http://localhost:8080
+{{- end }}
+
+{{- if .Values.config.authDisabled }}
+
+  ***  AUTH IS DISABLED  ***
+
+  Every request runs as {{ .Values.config.devUser }} with groups
+  {{ .Values.config.devGroups }}, and the admin gate is not enforced. Anyone who
+  can reach this Service can move production traffic.
+
+  This is intended for local evaluation only. For any real deployment set
+  config.authDisabled=false and configure config.ldapURL.
+{{- end }}
+
+{{- if not .Values.migrations.enabled }}
+
+Migrations are disabled. Apply db/migrations yourself before the pods start, or
+/readyz will fail against a schema the code does not recognise.
+{{- end }}
+
+Newly registered services are monitor-only. Granting one the power to move
+traffic is a separate, explicit step — see docs/adding-services.md.

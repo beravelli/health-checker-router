@@ -69,6 +69,16 @@ securityContext:
 # Non-secret configuration, rendered into a ConfigMap.
 config:
   logLevel: info
+  # Directory the console bundle is served from. The image ships it here; set
+  # to "" to disable static serving and run the API headless.
+  webDir: /app/web
+  # Local evaluation escape hatch. With this true every request runs as devUser
+  # with devGroups and the admin gate is not enforced — never enable it on a
+  # cluster that can reach production infrastructure. Leave false and configure
+  # ldapURL for any real deployment. The chart fails to render if both are set.
+  authDisabled: false
+  devUser: dev@localhost
+  devGroups: sre-admins
   probeInterval: 5s
   probeTimeout: 3s
   failuresToTrip: 3
@@ -125,9 +135,3 @@ networkPolicy:
   # Egress is restricted to Postgres, LDAP, DNS, and HTTPS for the AWS/Avi/
   # Akamai APIs plus the probe targets themselves.
   allowedEgressPorts: [53, 389, 636, 443, 5432]
-
-postgresql:
-  enabled: true
-  auth:
-    database: health_checker
-    username: health_checker

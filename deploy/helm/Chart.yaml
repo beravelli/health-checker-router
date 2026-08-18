@@ -5,10 +5,15 @@ type: application
 version: 0.1.0
 appVersion: "0.1.0"
 
-dependencies:
-  # Prototype convenience. For production, prefer CloudNativePG so you get
-  # backups and failover rather than a bare StatefulSet.
-  - name: postgresql
-    version: "16.x.x"
-    repository: https://charts.bitnami.com/bitnami
-    condition: postgresql.enabled
+# No database subchart on purpose.
+#
+# Helm's dependency check runs before conditions are evaluated, so a declared
+# subchart makes `helm install` fail with "missing in charts/ directory" until
+# `helm dependency update` has succeeded — even for deployments that bring their
+# own database, which is every real one. Bundling one also pins image tags this
+# chart has no way to keep current.
+#
+# Point secrets.databaseSecretName at a Secret holding the connection string
+# instead. For local evaluation, deploy/local/postgres.yaml creates both. For
+# production, prefer CloudNativePG or your provider's managed Postgres, so you
+# get backups and failover rather than a bare StatefulSet.

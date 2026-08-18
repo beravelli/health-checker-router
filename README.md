@@ -92,6 +92,7 @@ docs/                     Guides (below)
 | [docs/adding-services.md](docs/adding-services.md) | **How to add a service** — probe types, AWS auth, hysteresis tuning, troubleshooting |
 | [docs/admin.md](docs/admin.md) | **Admin functionality** — the LDAP gate, regions, routing providers, fail-open policy, audit log, and how to add new admin capabilities |
 | [docs/api.md](docs/api.md) | Full API reference |
+| [docs/local-deploy.md](docs/local-deploy.md) | **Local deploy playbook** — build the image and run the whole stack on a local cluster via the Helm chart |
 
 ---
 
@@ -120,6 +121,17 @@ make web-dev
 
 Open http://localhost:5173. The Vite dev server proxies `/api` to `:8080`, so
 the session cookie works without CORS being involved.
+
+That is the fast inner loop. To run the real container on a local Kubernetes
+cluster through the Helm chart instead — which is what CI and production
+deploy — follow [docs/local-deploy.md](docs/local-deploy.md), or:
+
+```bash
+kubectl create namespace health-checker
+kubectl apply -f deploy/local/postgres.yaml
+make local-up
+kubectl -n health-checker port-forward svc/health-checker 8080:80
+```
 
 You'll land on an empty Overview — both regions exist but nothing is registered
 yet. Go to **Admin → Add a service** and point a probe at something.
@@ -165,6 +177,17 @@ helm upgrade --install health-checker deploy/helm \
 The chart gives you a 2-replica Deployment with liveness/readiness probes, an
 HPA, a PodDisruptionBudget, a NetworkPolicy, and a pre-install/pre-upgrade
 migration hook so the schema is never behind the code.
+
+The chart carries no database subchart. Helm validates declared dependencies
+before conditions are evaluated, so bundling one would make `helm install` fail
+until `helm dependency update` had succeeded — including for the deployments
+that bring their own database, which is all of them. Point
+`secrets.databaseSecretName` at your own Postgres instead.
+
+Migrations are packaged from `deploy/helm/migrations`, a synced copy of
+`db/migrations`, because Helm's `.Files` cannot read outside the chart
+directory. Run `make helm-sync-migrations` after adding a migration; `make
+check` fails if the two drift.
 
 Two Secrets are **not** created by the chart, deliberately — populate them from
 your secrets engine:
