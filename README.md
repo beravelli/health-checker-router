@@ -102,6 +102,7 @@ docs/                     Guides (below)
 | [docs/local-deploy.md](docs/local-deploy.md) | **Local deploy playbook** — build the image and run the whole stack on a local cluster via the Helm chart |
 | [docs/production-readiness.md](docs/production-readiness.md) | **Production readiness** — what is done, what is missing, and what it would take to go live |
 | [design/ADR-001](design/ADR-001-multi-region-topology.md) | **Multi-region topology** — where the checker itself should run, why the controller is deliberately not active-active, and why evacuation goes through ARC |
+| [design/deployment-architecture.md](design/deployment-architecture.md) | **Deployment diagram + HA scenarios** — the topology drawn out, and 20 failure cases with detection, response, RTO, and who has to act |
 
 ---
 

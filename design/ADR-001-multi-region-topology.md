@@ -131,6 +131,9 @@ silences the alert about it.
 
 ## Target topology
 
+Drawn out, with the per-failure behaviour matrix, in
+[deployment-architecture.md](deployment-architecture.md).
+
 ```
 us-east-1 (monitored)          us-west-2 (monitored)
   services                        services

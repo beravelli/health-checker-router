@@ -138,6 +138,10 @@ admin gate is tested, but the group *resolution* feeding it is not.
 
 ### 4. Single vantage point
 
+See [deployment-architecture.md](../design/deployment-architecture.md) for the
+full failure matrix; scenarios 7 and 8 are the ones this gap makes harder to
+interpret.
+
 Quorum is across targets within a region, not across observers. One checker
 sitting in `us-east-1` that loses its route to `us-west-2` sees `us-west-2` go
 unknown, and no tuning distinguishes that from `us-west-2` actually being
