@@ -98,7 +98,7 @@ docs/                     Guides (below)
 
 ## Running locally
 
-Prerequisites: Go 1.24+, Node 20+, Docker, and
+Prerequisites: Go 1.25+, Node 20+, Docker, and
 [goose](https://github.com/pressly/goose) for migrations.
 
 ```bash

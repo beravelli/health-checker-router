@@ -25,7 +25,7 @@ failure surfaces where it happened rather than three steps later.
 | A local cluster | `kubectl config current-context` | `docker-desktop`, `kind-*`, or `minikube` |
 | kubectl | `kubectl version --client` | |
 | Helm 3 | `helm version --short` | v3.8+ |
-| Go 1.24+, Node 20+ | `go version && node --version` | Only for step 1 |
+| Go 1.25+, Node 20+ | `go version && node --version` | Only for step 1 |
 
 Enable Kubernetes in Docker Desktop under **Settings → Kubernetes → Enable
 Kubernetes** if `current-context` comes back empty.

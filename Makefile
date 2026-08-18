@@ -1,4 +1,4 @@
-# Common developer tasks. Everything assumes Go 1.24+ and Node 20+.
+# Common developer tasks. Everything assumes Go 1.25+ and Node 20+.
 
 SHELL := /bin/bash
 IMAGE ?= health-checker-router
