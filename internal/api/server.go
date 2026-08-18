@@ -17,6 +17,7 @@ import (
 	"github.com/beravelli/health-checker-router/internal/health"
 	"github.com/beravelli/health-checker-router/internal/incident"
 	"github.com/beravelli/health-checker-router/internal/lb"
+	"github.com/beravelli/health-checker-router/internal/obs"
 	"github.com/beravelli/health-checker-router/internal/rollout"
 	"github.com/beravelli/health-checker-router/internal/routing"
 	"github.com/beravelli/health-checker-router/internal/store"
@@ -26,6 +27,13 @@ import (
 // added probe targets start without a restart.
 type ServiceSyncer interface {
 	SyncNow(ctx context.Context) error
+}
+
+// LeaderState reports whether this replica drives the pipeline. Surfaced on
+// /readyz and /api/me so it is obvious which pod is deciding.
+type LeaderState interface {
+	IsLeader() bool
+	Term() int64
 }
 
 // Server wires the HTTP surface to the domain services.
@@ -43,6 +51,8 @@ type Server struct {
 	dir       auth.Directory
 	sessions  *auth.SessionStore
 	syncer    ServiceSyncer
+	metrics   *obs.Metrics
+	leader    LeaderState
 }
 
 // Deps groups the Server's collaborators.
@@ -57,6 +67,8 @@ type Deps struct {
 	Rollouts   *rollout.Service
 	Registry   *routing.Registry
 	Hub        *events.Hub
+	Metrics    *obs.Metrics
+	Leader     LeaderState
 	Directory  auth.Directory
 	Sessions   *auth.SessionStore
 	Syncer     ServiceSyncer
@@ -69,6 +81,7 @@ func New(d Deps) *Server {
 		lb: d.LB, failopen: d.FailOpen, incidents: d.Incidents,
 		rollouts: d.Rollouts, registry: d.Registry, hub: d.Hub,
 		dir: d.Directory, sessions: d.Sessions, syncer: d.Syncer,
+		metrics: d.Metrics, leader: d.Leader,
 	}
 }
 
@@ -79,6 +92,13 @@ func (s *Server) Handler() http.Handler {
 	// Liveness and readiness are unauthenticated so kubelet can reach them.
 	mux.HandleFunc("GET /healthz", s.handleLive)
 	mux.HandleFunc("GET /readyz", s.handleReady)
+
+	// Metrics are unauthenticated for the same reason: the scraper is
+	// infrastructure, not a user. Nothing here is sensitive — scores, weights
+	// and counters — and the NetworkPolicy is what restricts who can reach it.
+	if s.metrics != nil {
+		mux.Handle("GET /metrics", s.metrics.Handler())
+	}
 
 	// Session.
 	mux.HandleFunc("POST /api/login", s.handleLogin)

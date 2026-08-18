@@ -1,0 +1,123 @@
+{{- if .Values.monitoring.prometheusRule.enabled }}
+{{- /*
+The dead man's switch lives here.
+
+Every other alert in this file describes something the checker observed and
+reported. These first two describe the checker itself going quiet, which is the
+failure mode nothing inside the process can report: a replica isolated from the
+network cannot page, cannot write to Postgres, and cannot serve /readyz. From
+the outside, "everything is fine" and "the thing that tells you what is wrong is
+dead" look identical. Only an alert on absence distinguishes them.
+
+Alertmanager must be able to deliver these through a path that does not depend
+on this cluster, or the same isolation that silenced the checker silences the
+alert about it.
+*/ -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "hcr.fullname" . }}
+  labels:
+    {{- include "hcr.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: health-checker.liveness
+      rules:
+        - alert: HealthCheckerStalled
+          expr: >-
+            time() - max(hcr_last_evaluation_timestamp_seconds) >
+            {{ .Values.monitoring.prometheusRule.stalledAfter | trimSuffix "m" | float64 | mulf 60 }}
+          labels:
+            severity: critical
+          annotations:
+            summary: No evaluation cycle completed in {{ .Values.monitoring.prometheusRule.stalledAfter }}
+            description: >-
+              The health checker has not completed an evaluation cycle recently.
+              Load-balancer weights are frozen at their last value and no health
+              signal is being acted on. This does not self-resolve.
+
+        - alert: HealthCheckerNoLeader
+          expr: max(hcr_leader) == 0 or absent(hcr_leader)
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: No replica holds the evaluate-loop leadership lock
+            description: >-
+              Every replica is in standby, or none are reporting. Nothing is
+              probing and nothing is reconciling weights. Check Postgres
+              reachability — leadership is an advisory lock, so a database
+              outage prevents election.
+
+        - alert: HealthCheckerLeadershipFlapping
+          expr: sum(increase(hcr_leader_terms_total[15m])) > 3
+          labels:
+            severity: warning
+          annotations:
+            summary: Evaluate-loop leadership is changing hands repeatedly
+            description: >-
+              More than three leadership transitions in 15 minutes. Each one
+              restarts the probe fleet, so hysteresis counters reset and status
+              changes are delayed. Usually database connection churn.
+
+    - name: health-checker.decisions
+      rules:
+        - alert: HealthCheckerFailOpenActive
+          expr: hcr_fail_open_active == 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Health signal inconclusive; holding last-known-good weights
+            description: >-
+              Probe quorum has not been met for 5 minutes. The system is
+              deliberately not acting on an unverified signal. Verify whether
+              the targets are actually unhealthy or the checker has lost
+              visibility.
+
+        - alert: HealthCheckerRegionBlind
+          expr: hcr_region_unknown_ratio > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Over half of {{ "{{ $labels.region }}" }}'s probes are inconclusive
+            description: >-
+              Sustained inconclusive results usually mean a problem on the
+              checker's side of the network rather than the target's. If both
+              regions show this simultaneously, suspect the checker.
+
+        - alert: HealthCheckerRegionCritical
+          expr: hcr_region_score < 70
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: Region {{ "{{ $labels.region }}" }} scored below the critical threshold
+            description: Composite score is {{ "{{ $value | printf \"%.1f\" }}" }}, below the 70 degraded floor.
+
+        - alert: HealthCheckerWeightPushFailing
+          expr: increase(hcr_weight_changes_total{outcome="error"}[10m]) > 2
+          labels:
+            severity: critical
+          annotations:
+            summary: Weight changes are failing to reach {{ "{{ $labels.provider }}" }}
+            description: >-
+              The checker has decided to move traffic and cannot. Computed
+              weights and actual routing have diverged, which is worse than
+              either being wrong consistently.
+
+        - alert: HealthCheckerEvaluationErrors
+          expr: increase(hcr_evaluations_total{outcome="error"}[10m]) > 5
+          labels:
+            severity: warning
+          annotations:
+            summary: Evaluation cycles are erroring
+            description: >-
+              The loop is running but failing. Weights are not being updated
+              even though the heartbeat looks healthy — which is why this is
+              alerted separately from staleness.
+{{- end }}

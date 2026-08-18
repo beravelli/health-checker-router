@@ -1,0 +1,22 @@
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "hcr.fullname" . }}
+  labels:
+    {{- include "hcr.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "hcr.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      # Every replica is scraped, not just the leader: hcr_leader is only
+      # meaningful if standbys report 0, and the no-leader alert depends on
+      # seeing the whole fleet.
+{{- end }}

@@ -24,6 +24,18 @@ type Notifier interface {
 	OnStatusChange(serviceID, regionID string, from, to models.Status)
 }
 
+// Observer receives every raw probe outcome, debounced or not.
+//
+// Separate from Notifier, which only fires on transitions: metrics need the
+// full stream, including the unknowns that hysteresis deliberately swallows,
+// because a rising unknown rate is the earliest signal that the checker itself
+// is in trouble. An interface rather than a direct dependency so this package
+// stays free of the metrics library.
+type Observer interface {
+	ProbeObserved(service, region, status string, d time.Duration)
+	TargetStatus(service, region string, ordinal float64)
+}
+
 // TargetHealthChecker resolves the health of an AWS load-balancer target
 // group. It is an interface so this package does not import the AWS SDK; the
 // concrete implementation lives in internal/awsauth.
@@ -54,6 +66,7 @@ type Runner struct {
 	cfg      *config.Config
 	recorder Recorder
 	notifier Notifier
+	observer Observer
 	aws      TargetHealthChecker
 	log      *slog.Logger
 
@@ -65,11 +78,12 @@ type Runner struct {
 
 // NewRunner constructs a Runner. aws may be nil if no ALB/NLB targets are
 // registered; such targets then report unknown rather than crashing.
-func NewRunner(cfg *config.Config, rec Recorder, notifier Notifier, aws TargetHealthChecker, log *slog.Logger) *Runner {
+func NewRunner(cfg *config.Config, rec Recorder, notifier Notifier, observer Observer, aws TargetHealthChecker, log *slog.Logger) *Runner {
 	return &Runner{
 		cfg:      cfg,
 		recorder: rec,
 		notifier: notifier,
+		observer: observer,
 		aws:      aws,
 		log:      log,
 		states:   map[string]*State{},
@@ -249,10 +263,31 @@ func (r *Runner) probeOnce(ctx context.Context, t Target) {
 		r.log.Error("record probe", "target", t.Key(), "error", err)
 	}
 
+	if r.observer != nil {
+		r.observer.ProbeObserved(t.Service, t.RegionID, string(observed), latency)
+		r.observer.TargetStatus(t.Service, t.RegionID, statusOrdinal(after))
+	}
+
 	if changed && r.notifier != nil {
 		r.log.Info("target status changed",
 			"target", t.Key(), "from", before, "to", after, "detail", detail)
 		r.notifier.OnStatusChange(t.ServiceID, t.RegionID, before, after)
+	}
+}
+
+// statusOrdinal maps a status onto the numeric scale hcr_target_status exports.
+// Ordered by severity so a max() across a region is meaningful, with unknown
+// highest because "we cannot tell" is the state that most needs attention.
+func statusOrdinal(s models.Status) float64 {
+	switch s {
+	case models.StatusHealthy:
+		return 0
+	case models.StatusDegraded:
+		return 1
+	case models.StatusCritical:
+		return 2
+	default:
+		return 3
 	}
 }
 

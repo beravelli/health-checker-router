@@ -71,7 +71,9 @@ internal/
   auth/                   LDAP directory, group resolution, sessions
   incident/               Incident recording and on-call paging
   rollout/                Rollout tracking with canary gating
-  api/                    REST + SSE handlers, middleware, admin gate
+  api/                    REST + SSE handlers, middleware, admin gate, static console
+  leader/                 Single-writer election over a Postgres advisory lock
+  obs/                    Prometheus metrics, including the heartbeat
   store/                  Postgres persistence
   events/                 In-process pub/sub behind SSE
   models/                 Domain types
@@ -93,6 +95,7 @@ docs/                     Guides (below)
 | [docs/admin.md](docs/admin.md) | **Admin functionality** — the LDAP gate, regions, routing providers, fail-open policy, audit log, and how to add new admin capabilities |
 | [docs/api.md](docs/api.md) | Full API reference |
 | [docs/local-deploy.md](docs/local-deploy.md) | **Local deploy playbook** — build the image and run the whole stack on a local cluster via the Helm chart |
+| [docs/production-readiness.md](docs/production-readiness.md) | **Production readiness** — what is done, what is missing, and what it would take to go live |
 
 ---
 
@@ -151,6 +154,8 @@ the annotated list. The ones that matter:
 | `PROBE_INTERVAL` | `5s` | Global default; per-service values override |
 | `PROBE_TIMEOUT` | `3s` | Clamped to `PROBE_INTERVAL` |
 | `EVALUATE_INTERVAL` | `15s` | How often health is recomputed and weights reconciled |
+| `LEADER_POLL_INTERVAL` | `5s` | Advisory-lock retry interval; bounds leader failover time |
+| `WEB_DIR` | `/app/web` | Console bundle directory; empty runs the API headless |
 | `FAILURES_TO_TRIP` | `3` | Confirmed failures before a target trips |
 | `SUCCESS_TO_RECOVER` | `2` | Good probes before a target is healthy — including its first verdict after startup |
 | `UNKNOWNS_TO_DISTRUST` | `3` | Inconclusive probes before a target counts against quorum |
@@ -177,6 +182,17 @@ helm upgrade --install health-checker deploy/helm \
 The chart gives you a 2-replica Deployment with liveness/readiness probes, an
 HPA, a PodDisruptionBudget, a NetworkPolicy, and a pre-install/pre-upgrade
 migration hook so the schema is never behind the code.
+
+Replicas are safe because the probe fleet and the evaluate loop are elected, not
+replicated: one pod holds a Postgres advisory lock and drives the pipeline while
+the others serve the console and the read API. Scaling out adds read capacity
+and failover, never a second writer.
+
+Turn on scraping and alerts with `monitoring.serviceMonitor.enabled=true` and
+`monitoring.prometheusRule.enabled=true` (both need the Prometheus Operator
+CRDs). The rule set includes a dead man's switch on
+`hcr_last_evaluation_timestamp_seconds` — deliver it over a path independent of
+this cluster, or the outage that silences the checker silences the alert too.
 
 The chart carries no database subchart. Helm validates declared dependencies
 before conditions are evaluated, so bundling one would make `helm install` fail

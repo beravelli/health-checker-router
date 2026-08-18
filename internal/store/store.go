@@ -50,6 +50,14 @@ func New(ctx context.Context, databaseURL string) (*Store, error) {
 // Close releases the pool.
 func (s *Store) Close() { s.pool.Close() }
 
+// Pool exposes the underlying pool for callers that need a dedicated
+// connection rather than a query.
+//
+// Only internal/leader uses this, because a session-scoped advisory lock must
+// be held on one connection for the whole term and must not be returned to the
+// pool while held. Everything else goes through the methods on Store.
+func (s *Store) Pool() *pgxpool.Pool { return s.pool }
+
 // Ping checks database reachability, for /readyz.
 func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
 

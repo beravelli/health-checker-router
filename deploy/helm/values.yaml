@@ -89,6 +89,9 @@ config:
   # How often health is recomputed and weights reconciled. Keep well above
   # probeInterval.
   evaluateInterval: 15s
+  # The probe fleet and evaluate loop run on one replica, elected via a Postgres
+  # advisory lock. This bounds how long failover takes when a leader dies.
+  leaderPollInterval: 5s
   # quorumRequired must be strictly less than quorumTotal; equal values tolerate
   # no inconclusive probes and the server refuses to start.
   quorumRequired: 2
@@ -129,6 +132,22 @@ migrations:
   image:
     repository: ghcr.io/kukymbr/goose-docker
     tag: "3.22.1"
+
+# Prometheus scraping. The chart can emit a ServiceMonitor and a PrometheusRule;
+# both require the Prometheus Operator CRDs, so both default off.
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    # Extra labels your Prometheus instance selects on.
+    labels: {}
+  # The alerts that matter are the ones firing on *silence* — see the rule
+  # bodies in templates/prometheusrule.yaml.
+  prometheusRule:
+    enabled: false
+    labels: {}
+    # How long the fleet may go without a completed evaluation cycle.
+    stalledAfter: 3m
 
 networkPolicy:
   enabled: true

@@ -44,6 +44,11 @@ type Config struct {
 	// accumulates only adds churn.
 	EvaluateInterval time.Duration
 
+	// LeaderPollInterval is how often a standby replica retries for the
+	// advisory lock, and how often the leader checks that the connection
+	// holding it is alive. It bounds failover time when a leader dies.
+	LeaderPollInterval time.Duration
+
 	// Fail-open policy.
 	QuorumRequired int
 	QuorumTotal    int
@@ -83,6 +88,7 @@ func Load() (*Config, error) {
 		SuccessToRecover:   envInt("SUCCESS_TO_RECOVER", 2),
 		UnknownsToDistrust: envInt("UNKNOWNS_TO_DISTRUST", 3),
 		EvaluateInterval:   envDuration("EVALUATE_INTERVAL", 15*time.Second),
+		LeaderPollInterval: envDuration("LEADER_POLL_INTERVAL", 5*time.Second),
 		QuorumRequired:     envInt("QUORUM_REQUIRED", 2),
 		QuorumTotal:        envInt("QUORUM_TOTAL", 3),
 		FailOpenHold:       envDuration("FAIL_OPEN_HOLD", 10*time.Minute),
@@ -127,6 +133,9 @@ func Load() (*Config, error) {
 	}
 	if c.EvaluateInterval <= 0 {
 		return nil, fmt.Errorf("EVALUATE_INTERVAL must be positive, got %s", c.EvaluateInterval)
+	}
+	if c.LeaderPollInterval <= 0 {
+		return nil, fmt.Errorf("LEADER_POLL_INTERVAL must be positive, got %s", c.LeaderPollInterval)
 	}
 	return c, nil
 }

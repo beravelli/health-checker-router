@@ -33,6 +33,7 @@ data:
   SUCCESS_TO_RECOVER: {{ .Values.config.successToRecover | quote }}
   UNKNOWNS_TO_DISTRUST: {{ .Values.config.unknownsToDistrust | quote }}
   EVALUATE_INTERVAL: {{ .Values.config.evaluateInterval | quote }}
+  LEADER_POLL_INTERVAL: {{ .Values.config.leaderPollInterval | quote }}
   QUORUM_REQUIRED: {{ .Values.config.quorumRequired | quote }}
   QUORUM_TOTAL: {{ .Values.config.quorumTotal | quote }}
   FAIL_OPEN_HOLD: {{ .Values.config.failOpenHold | quote }}
