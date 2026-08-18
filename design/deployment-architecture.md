@@ -13,14 +13,12 @@ Diagrams are Mermaid and render on GitHub.
 flowchart TB
     subgraph east["us-east-1 · monitored"]
         esvc["services<br/><small>your workloads</small>"]
-        eprobe["probe deployment<br/><small>observes locally</small>"]
-        eprobe -. probes .-> esvc
+        elat["latency agent<br/><small>separate system</small>"]
     end
 
     subgraph west["us-west-2 · monitored"]
         wsvc["services<br/><small>your workloads</small>"]
-        wprobe["probe deployment<br/><small>observes locally</small>"]
-        wprobe -. probes .-> wsvc
+        wlat["latency agent<br/><small>separate system</small>"]
     end
 
     subgraph cp["us-west-1 · control plane, no workloads"]
@@ -34,8 +32,8 @@ flowchart TB
     arc["ARC routing controls<br/><small>5-region quorum data plane</small>"]
     r53["Route 53 weights / Envoy edge<br/><small>proportional shifting</small>"]
 
-    eprobe -- observations --> decider
-    wprobe -- observations --> decider
+    decider -- probes --> esvc
+    decider -- probes --> wsvc
     decider -- evacuate --> arc
     decider -- rebalance --> r53
     arc --> east
@@ -46,7 +44,9 @@ flowchart TB
 
 Three properties do the work:
 
-1. **Probes are in-region.** They measure the path customers take.
+1. **Probes have vantage diversity.** More than one observer, so a dead target
+   and a dead path are distinguishable. Position matters less than independence
+   — see [ADR-001 decision 1](ADR-001-multi-region-topology.md).
 2. **Exactly one decider, outside both monitored regions.** No split-brain, no
    correlated failure with what it controls.
 3. **Two execution paths.** Proportional shifts through weights; evacuation
@@ -161,16 +161,19 @@ a prerequisite for production.
 
 ## Gap against this diagram
 
-The topology above is the target. Today the prober and decider are **one binary
-gated by leader election**, so probes run only on the leader, in whichever region
-the control plane occupies. Deployed per ADR-001 that means:
+The topology above is reachable today — the checker runs in the control-plane
+region and probes both monitored regions from there. One thing is missing.
 
-- Decision placement: correct
-- Signal accuracy: degraded — probes measure from the control-plane region, not
-  from inside the monitored ones
-- Scenarios 1–5: still work, but latency measurements are cross-region
-- Scenario 7: harder to interpret; losing visibility of a region and the region
-  being down look more alike from a single external vantage point
+**There is exactly one vantage point.** Scenario 7 (lost visibility of one
+region) and scenario 8 (inter-region partition) both resolve correctly *as
+designed* — hold and page — but the operator receiving that page has no signal
+telling them which of the two happened. A witness probe supplies it: if the
+witness is also unreachable, the checker is the problem.
 
-Splitting them requires a reporting protocol between probe and decider, and is
-the next piece of work. See [production-readiness.md](../docs/production-readiness.md).
+That is the next piece of work, and it is small. The earlier plan to split the
+prober from the decider is no longer on the critical path — it was motivated by
+latency accuracy, which dedicated per-region agents handle better anyway.
+
+One configuration note that follows from probing cross-region: leave
+`degradedAboveMs` unset unless you have recalibrated it for the new vantage
+point. See [production-readiness.md](../docs/production-readiness.md#4a-degradedabovems-is-miscalibrated-for-cross-region-probing).

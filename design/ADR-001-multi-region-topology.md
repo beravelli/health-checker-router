@@ -15,10 +15,8 @@ region failure or an inter-region partition.
 
 Three requirements pull in different directions:
 
-1. **Signal accuracy** wants probes close to the services — measuring the path
-   customers actually take, including private endpoints and intra-region
-   latency. Probing us-east-1 from outside measures the internet, not the
-   service.
+1. **Signal usefulness** wants probes wherever they answer the routing question
+   best. See decision 1 — this turned out not to mean "in-region".
 2. **Availability** wants the checker to survive losing any one region,
    including a region it monitors.
 3. **Correctness** wants exactly one entity deciding where traffic goes.
@@ -26,19 +24,52 @@ Three requirements pull in different directions:
 Requirements 2 and 3 are the ones that conflict, and the conflict is not
 resolvable by making the checker active-active. That is the crux of this ADR.
 
+> **Revised 2026-08-18.** An earlier draft argued for in-region probes on
+> latency-accuracy grounds. That was wrong, or at least it was answering a
+> question the checker does not ask. Latency measurement is a separate concern
+> served by purpose-built per-region agents; it does not need to ride on the
+> health checker. Decision 1 below is the corrected version.
+
 ---
 
 ## Decision
 
-### 1. Separate the observation plane from the decision plane
+### 1. Probes need vantage *diversity*, not co-location
 
-Probes run **in every monitored region**. Decisions run **in exactly one place,
-which is not a monitored region**.
+The checker answers one question: **can traffic reach this region and get
+served**. It does not answer "how fast is this region internally" — that is a
+performance question, served better by dedicated per-region latency agents that
+have nothing to do with failover.
 
-A controller inside us-east-1 evaluating us-east-1 has a correlated failure
-mode: the region degrades and takes the controller with it, removing the
-decision-maker at the moment it is needed. A control plane must not share a
-failure domain with what it controls.
+Once latency is out of scope, the case for in-region probes mostly evaporates,
+and probing from outside is arguably *more* correct for the routing decision:
+
+- A region whose services are healthy from inside their own VPC but unreachable
+  from where traffic originates **must** be evacuated. An in-region probe
+  reports healthy and misses the outage entirely — a false negative on a real
+  failure.
+- Externally-originating probes traverse the same edge, load balancers and
+  security groups that customer traffic does. That is the path whose health
+  determines whether traffic should be sent.
+
+What genuinely matters is **more than one vantage point**, so the system can
+distinguish "the target is down" from "my path to the target is down". One
+observer cannot tell those apart no matter where it sits. Two or three can.
+
+So: decisions run in exactly one place that is not a monitored region — a
+controller inside us-east-1 evaluating us-east-1 degrades along with it and
+disappears when needed. Probes run from at least two vantage points, at least
+one of which is outside every monitored region. Whether a vantage point happens
+to sit inside a monitored region is an availability and reachability question,
+not an accuracy one.
+
+**Consequence for configuration:** `degradedAboveMs` turns probe latency into a
+`degraded` status, which scores 0.5 instead of 1.0 and sheds traffic. A
+threshold calibrated for in-region probing will fire permanently once the probe
+runs cross-region, because every measurement now carries inter-region RTT — a
+standing false degradation that quietly moves traffic. Either raise the
+threshold to suit the new vantage point or unset it and let dedicated latency
+agents own that signal. Unset is the better default here.
 
 ### 2. The decision plane is single-writer, and deliberately not active-active
 
@@ -137,14 +168,12 @@ Drawn out, with the per-failure behaviour matrix, in
 ```
 us-east-1 (monitored)          us-west-2 (monitored)
   services                        services
-  checker-probe deployment        checker-probe deployment
-    observes locally                observes locally
-    reports upstream                reports upstream
-         \                             /
-          \                           /
-           v                         v
+  latency agent (separate)        latency agent (separate)
+         ^                             ^
+          \      probed from          /
+           \     >= 2 vantages       /
           us-west-1 (control plane, hosts nothing else)
-            checker-decide  (leader-elected, single writer)
+            checker         (leader-elected, single writer)
             Postgres        (advisory lock lives here)
             Prometheus + Alertmanager
                     |
@@ -153,8 +182,12 @@ us-east-1 (monitored)          us-west-2 (monitored)
           Route 53 weights / Envoy edge (proportional)
 ```
 
-Probes report upstream rather than writing routing state. The decider owns every
-write.
+The decider owns every write. Latency agents are a separate system feeding
+dashboards, not the routing decision.
+
+Vantage points can be a second checker instance, a witness target, or an
+external synthetic. What matters is that they do not all share one network path
+— not that they sit inside the monitored regions.
 
 ---
 
@@ -162,13 +195,14 @@ write.
 
 ### Good
 
-- Survives losing either monitored region: the decider is elsewhere and the
-  surviving region's probes keep reporting.
+- Survives losing either monitored region: the decider is elsewhere, and losing
+  a monitored region does not remove an observer of it.
 - Survives an inter-region partition without split-brain: one writer, and the
   fail-open controller holds weights when the signal is inconclusive.
 - Survives a us-east-1 control-plane event, because evacuation no longer needs
   the Route 53 API.
-- Probes measure what customers experience.
+- Probes traverse the same edge path customer traffic does, so a region that is
+  internally healthy but externally unreachable is still caught.
 
 ### Bad
 
@@ -178,8 +212,10 @@ write.
   decide" as "hold and page", so the failure mode is inaction rather than a
   wrong action. That is the correct trade, but it must be understood: **the
   system is not self-healing during a control-plane outage.**
-- Probes and decider become separate deployments with a reporting protocol
-  between them — more moving parts than one binary.
+- Probing from one place cannot distinguish a dead target from a dead path. A
+  second vantage point is required, though that is far less work than splitting
+  the prober out of the decider.
+- `degradedAboveMs` thresholds calibrated in-region become wrong. See decision 1.
 - Two routing mechanisms to keep coherent. `Status()` from ARC and from a
   weighted provider will legitimately disagree, and operators need to know that
   is information rather than drift.
@@ -218,20 +254,17 @@ Done:
 
 Not done:
 
-- **Splitting the prober from the decider.** Today leader election gates both,
-  so probing happens only on the leader, in the control-plane region. That is
-  the opposite of decision 1 and is the largest remaining gap: it means probes
-  measure from outside the monitored regions.
+- **A second vantage point.** Today there is exactly one observer, so "the
+  target is down" and "our path to the target is down" are indistinguishable.
+  This is now the largest remaining gap in the topology. A witness probe is the
+  cheap version; a second checker instance elsewhere is the thorough one.
 - Deploying the control plane to a third region (currently a chart value away,
   but untested)
-- Cross-region reporting protocol between probes and decider
-- A witness probe to distinguish "the target is unreachable" from "we are
-  unreachable"
+- Guidance or validation on `degradedAboveMs` when probing cross-region
 
-Until the prober/decider split lands, running this in a monitored region is a
-worse configuration than the ADR describes, and running it in a third region
-gives correct decision placement with degraded signal accuracy. The second is
-the better of the two.
+Running the checker from a third region is the correct configuration today. The
+earlier concern — that this degrades signal accuracy — was about latency, which
+this system no longer claims to measure.
 
 ---
 

@@ -57,10 +57,23 @@ The default. Issues `GET {endpoint}{path}` and compares the status code.
 | --- | --- |
 | `path` | Defaults to `/healthz` |
 | `expectedStatus` | Defaults to `200` |
-| `degradedAboveMs` | Optional. A response slower than this is *degraded*, not healthy — useful for catching a service that is up but struggling |
+| `degradedAboveMs` | Optional, and **calibrate it against where the probe runs** — see below. A response slower than this is *degraded*, not healthy |
 
 A transport error (connection refused, TLS failure, timeout) is recorded as
 **unknown**, not critical. See [Unknown vs critical](#unknown-is-not-critical).
+
+> **`degradedAboveMs` and probe placement.** This threshold turns latency into a
+> `degraded` status, which scores 0.5 instead of 1.0 and sheds traffic. It
+> therefore measures the *path* as much as the service. A value tuned while
+> probing from inside the region will fire permanently once the checker runs
+> from elsewhere, because every measurement then carries inter-region RTT —
+> a standing false degradation that quietly moves traffic for no reason.
+>
+> Leave it unset unless you have deliberately recalibrated for the probe's
+> actual vantage point. Latency as a *performance* signal is better served by
+> dedicated per-region agents that have nothing to do with failover; this field
+> exists to catch a service that is pathologically slow, not to measure
+> milliseconds.
 
 ### TCP
 

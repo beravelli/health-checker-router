@@ -143,21 +143,34 @@ full failure matrix; scenarios 7 and 8 are the ones this gap makes harder to
 interpret.
 
 Quorum is across targets within a region, not across observers. One checker
-sitting in `us-east-1` that loses its route to `us-west-2` sees `us-west-2` go
-unknown, and no tuning distinguishes that from `us-west-2` actually being
-unreachable. Two additions close it:
+loses its route to `us-west-2` and sees `us-west-2` go unknown; no tuning
+distinguishes that from `us-west-2` actually being unreachable. Two additions
+close it, in increasing order of cost:
 
 - **A witness probe** — each cycle, probe something known-good and independent
   of the monitored services. All targets unknown *and* witness unknown means the
   checker is the problem, and the page should say so rather than making on-call
-  infer it.
-- **A checker replica per region, cross-probing** — turns a single vantage point
-  into real observer quorum, which is what "quorum" implies in the README today.
+  infer it. This is a few hours of work and closes most of the gap.
+- **A second checker instance elsewhere, cross-probing** — turns a single
+  vantage point into real observer quorum, which is what "quorum" implies in the
+  README today.
 
-Note that leader election makes this harder, not easier: the leader is one pod
-in one AZ. Multi-vantage probing needs the probe fleet sharded across replicas
-with only reconciliation centralised, which is a different design from what is
-built.
+Note what this is *not*: it is not an argument for running probes inside the
+monitored regions. See [ADR-001 decision 1](../design/ADR-001-multi-region-topology.md).
+Probing from outside is fine, and arguably better, because it exercises the same
+path customer traffic takes. What is missing is a *second* path, not a closer
+one.
+
+### 4a. `degradedAboveMs` is miscalibrated for cross-region probing
+
+A slow-but-successful response becomes `degraded`, which scores 0.5 and sheds
+traffic. Any threshold tuned while probing in-region will fire permanently once
+the probe runs from another region, because every measurement now includes
+inter-region RTT. The result is a standing false degradation that quietly moves
+traffic for no reason.
+
+Unset it unless you have deliberately recalibrated for the new vantage point.
+Latency belongs to dedicated per-region agents, not to the failover signal.
 
 ### 5. Operational gaps
 
