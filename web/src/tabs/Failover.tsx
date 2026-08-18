@@ -14,6 +14,7 @@ const PROVIDER_LABEL: Record<RoutingProviderId, string> = {
   cloudfront: 'AWS CloudFront',
   avi_gslb: 'AVI GSLB',
   akamai_cloudlet: 'Akamai Cloudlet',
+  aws_arc: 'AWS Application Recovery Controller',
 }
 
 /**
@@ -204,7 +205,7 @@ export function Failover({
               </tr>
             </thead>
             <tbody>
-              {(['aws_native', 'cloudfront', 'avi_gslb', 'akamai_cloudlet'] as RoutingProviderId[]).map(
+              {(['aws_native', 'cloudfront', 'avi_gslb', 'akamai_cloudlet', 'aws_arc'] as RoutingProviderId[]).map(
                 (id) => {
                   const ep = (routing.endpoints ?? []).find((e) => e.provider === id)
                   const configured = ep ? Object.keys(ep.config ?? {}).length > 0 : false

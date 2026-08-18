@@ -103,6 +103,26 @@ region.
 
 Use *Save without enabling* to stage a config you're not ready to switch to.
 
+### Choosing a provider
+
+Read [ADR-001](../design/ADR-001-multi-region-topology.md) before picking one.
+The short version:
+
+`aws_native` and `cloudfront` write Route 53 records. Those are **control-plane**
+calls hosted in **us-east-1**, so if us-east-1 is degraded, the call that would
+evacuate us-east-1 may be the call that fails. They express proportion, which is
+what you want for degradation.
+
+`aws_arc` flips Application Recovery Controller routing controls over a
+five-endpoint data plane that keeps working with two endpoints down. It cannot
+express proportion — controls are On/Off — but it works during the regional
+event you are responding to.
+
+They are complementary rather than alternatives: proportional shifting through a
+weighted provider, evacuation through ARC. The console enables one at a time, so
+pick based on which failure you are more worried about, and see the ADR for the
+longer-term plan to run both.
+
 ### Provider config
 
 Each provider takes a JSON config object.
@@ -168,6 +188,45 @@ some Avi versions.
 
 Cloudlet policy versions are immutable, so each change creates a new version and
 activates it. Requests are EdgeGrid-signed.
+
+**AWS Application Recovery Controller** (`aws_arc`)
+
+```json
+{
+  "clusterEndpoints": [
+    {"endpoint": "https://aaaa.route53-recovery-cluster.us-east-1.amazonaws.com/v1", "region": "us-east-1"},
+    {"endpoint": "https://bbbb.route53-recovery-cluster.us-west-2.amazonaws.com/v1", "region": "us-west-2"},
+    {"endpoint": "https://cccc.route53-recovery-cluster.eu-west-1.amazonaws.com/v1", "region": "eu-west-1"},
+    {"endpoint": "https://dddd.route53-recovery-cluster.ap-northeast-1.amazonaws.com/v1", "region": "ap-northeast-1"},
+    {"endpoint": "https://eeee.route53-recovery-cluster.ap-southeast-2.amazonaws.com/v1", "region": "ap-southeast-2"}
+  ],
+  "routingControls": {
+    "us-east-1": "arn:aws:route53-recovery-control::111122223333:controlpanel/abc/routingcontrol/east",
+    "us-west-2": "arn:aws:route53-recovery-control::111122223333:controlpanel/abc/routingcontrol/west"
+  }
+}
+```
+
+Get the five endpoints from `aws route53-recovery-control-config describe-cluster`.
+**Configure all five.** The adapter refuses fewer than three, because ARC's
+guarantee is "at least three of five reachable" and configuring a subset forfeits
+the availability that is the entire reason to use it. Order matters — it is the
+retry order, so put the endpoints least likely to be affected by your own
+outages first.
+
+Weights collapse to states: any non-zero weight is `On`, zero is `Off`. A 70/30
+split and a 50/50 split produce identical routing control states.
+
+Failover sends one batched call containing both the `On` and the `Off`. Never
+split them: ARC evaluates safety rules per call, so two sequenced calls can each
+be individually valid while the moment between them is a full outage.
+
+*Safety rules.* ARC assertion rules can refuse a change that would take every
+cell out of rotation. The adapter never overrides them by default — a bug here
+that computed all-zero weights should be refused by AWS, not obeyed. To override
+deliberately, add `"safetyRulesToOverride": ["arn:..."]`. A refusal surfaces as a
+distinct error rather than being retried against the other four endpoints, since
+retrying a deliberate refusal cannot change the answer.
 
 ### Auth references
 

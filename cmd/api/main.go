@@ -28,6 +28,7 @@ import (
 	"github.com/beravelli/health-checker-router/internal/rollout"
 	"github.com/beravelli/health-checker-router/internal/routing"
 	"github.com/beravelli/health-checker-router/internal/routing/akamai"
+	"github.com/beravelli/health-checker-router/internal/routing/arc"
 	"github.com/beravelli/health-checker-router/internal/routing/avigslb"
 	"github.com/beravelli/health-checker-router/internal/routing/awsnative"
 	"github.com/beravelli/health-checker-router/internal/routing/cloudfrontadapter"
@@ -77,6 +78,7 @@ func run(log *slog.Logger) error {
 	registry.Register(models.ProviderCloudFront, cloudfrontadapter.Factory(awsResolver))
 	registry.Register(models.ProviderAviGSLB, avigslb.Factory())
 	registry.Register(models.ProviderAkamaiCloudlet, akamai.Factory())
+	registry.Register(models.ProviderAWSARC, arc.Factory(awsResolver))
 
 	lbController := lb.New(db, registry, hub, log)
 

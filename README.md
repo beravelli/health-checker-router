@@ -40,9 +40,13 @@ many targets in a region are unknown, quorum fails and the system fails open.
 weights up to 10 minutes, page on-call, and show the banner. Escalate to
 critical if the hold expires. Never fail over on an unverified signal.
 
-**5. Not DNS.** DNS TTL caching means a record change can take minutes to reach
-clients. Weight changes go through the edge (Envoy / the routing provider's
-fastest mechanism); DNS TTL is pinned to 30s as a backstop.
+**5. Not DNS, and not the Route 53 control plane either.** DNS TTL caching means
+a record change can take minutes to reach clients, so weight changes go through
+the edge (Envoy / the routing provider's fastest mechanism) with DNS TTL pinned
+to 30s as a backstop. Record *writes* have a second problem: they are
+control-plane calls hosted in us-east-1, so evacuating us-east-1 can depend on
+us-east-1. Evacuation therefore goes through ARC routing controls, whose data
+plane spans five regions. See [ADR-001](design/ADR-001-multi-region-topology.md).
 
 **6. References, not secrets.** Nothing in Postgres is a credential. Every
 credential field stores the *name* of an environment variable or a secret path,
@@ -67,6 +71,7 @@ internal/
     cloudfrontadapter/    CloudFront origin-group failover
     avigslb/              Avi GSLB pool member ratios
     akamai/               Akamai ALB Cloudlet policy versions
+    arc/                  AWS Application Recovery Controller routing controls
   awsauth/                AWS credential resolution (4 methods) + ELBv2 health
   auth/                   LDAP directory, group resolution, sessions
   incident/               Incident recording and on-call paging
@@ -96,6 +101,7 @@ docs/                     Guides (below)
 | [docs/api.md](docs/api.md) | Full API reference |
 | [docs/local-deploy.md](docs/local-deploy.md) | **Local deploy playbook** — build the image and run the whole stack on a local cluster via the Helm chart |
 | [docs/production-readiness.md](docs/production-readiness.md) | **Production readiness** — what is done, what is missing, and what it would take to go live |
+| [design/ADR-001](design/ADR-001-multi-region-topology.md) | **Multi-region topology** — where the checker itself should run, why the controller is deliberately not active-active, and why evacuation goes through ARC |
 
 ---
 

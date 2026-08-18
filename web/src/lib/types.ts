@@ -6,7 +6,12 @@ export type Status = 'healthy' | 'degraded' | 'critical' | 'unknown'
 export type Severity = 'critical' | 'warning' | 'resolved'
 export type ProbeRole = 'healthcheck_only' | 'healthcheck_failover'
 export type ProbeType = 'http' | 'tcp' | 'aws_alb' | 'aws_nlb' | 'grpc' | 'custom'
-export type RoutingProviderId = 'aws_native' | 'cloudfront' | 'avi_gslb' | 'akamai_cloudlet'
+export type RoutingProviderId =
+  | 'aws_native'
+  | 'cloudfront'
+  | 'avi_gslb'
+  | 'akamai_cloudlet'
+  | 'aws_arc'
 export type AWSAuthMethod = 'assume_role' | 'service_account' | 'aws_sso' | 'custom_sso_binary'
 
 export interface Region {

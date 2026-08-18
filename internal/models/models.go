@@ -85,6 +85,11 @@ const (
 	ProviderCloudFront     RoutingProvider = "cloudfront"
 	ProviderAviGSLB        RoutingProvider = "avi_gslb"
 	ProviderAkamaiCloudlet RoutingProvider = "akamai_cloudlet"
+	// ProviderAWSARC flips Amazon Application Recovery Controller routing
+	// controls. Binary rather than weighted, and the only AWS mechanism here
+	// whose data plane is designed to survive the regional event it is used to
+	// respond to.
+	ProviderAWSARC RoutingProvider = "aws_arc"
 )
 
 // AWSAuthMethod is how the prober obtains AWS credentials for a target.

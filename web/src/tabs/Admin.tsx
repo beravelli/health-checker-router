@@ -15,6 +15,7 @@ const PROVIDER_LABEL: Record<RoutingProviderId, string> = {
   cloudfront: 'AWS CloudFront',
   avi_gslb: 'AVI GSLB',
   akamai_cloudlet: 'Akamai Cloudlet',
+  aws_arc: 'AWS Application Recovery Controller',
 }
 
 const PROBE_LABEL: Record<ProbeType, string> = {
@@ -744,6 +745,8 @@ function configHint(p: RoutingProviderId): string {
       return 'Requires controllerUrl, gslbServiceName, username, and regionMembers (region id → pool member IP or FQDN).'
     case 'akamai_cloudlet':
       return 'Requires policyId, network (staging|production), and regionOrigins (region id → Cloudlet origin id).'
+    case 'aws_arc':
+      return 'Requires clusterEndpoints (all five, in retry order) and routingControls (region id → routing control ARN). Routing controls are On/Off, so weights collapse to in-rotation or out — pair with a weighted provider for proportional shifts.'
   }
 }
 
@@ -757,5 +760,7 @@ function configPlaceholder(p: RoutingProviderId): string {
       return '{\n  "controllerUrl": "https://avi.example.com",\n  "gslbServiceName": "app-gslb",\n  "username": "svc-health-checker",\n  "regionMembers": {\n    "us-east-1": "10.0.1.10",\n    "us-west-2": "10.1.1.10"\n  }\n}'
     case 'akamai_cloudlet':
       return '{\n  "policyId": "12345",\n  "network": "production",\n  "regionOrigins": {\n    "us-east-1": "east_origin",\n    "us-west-2": "west_origin"\n  }\n}'
+    case 'aws_arc':
+      return '{\n  "clusterEndpoints": [\n    {"endpoint": "https://aaaa.route53-recovery-cluster.us-east-1.amazonaws.com/v1", "region": "us-east-1"},\n    {"endpoint": "https://bbbb.route53-recovery-cluster.us-west-2.amazonaws.com/v1", "region": "us-west-2"},\n    {"endpoint": "https://cccc.route53-recovery-cluster.eu-west-1.amazonaws.com/v1", "region": "eu-west-1"},\n    {"endpoint": "https://dddd.route53-recovery-cluster.ap-northeast-1.amazonaws.com/v1", "region": "ap-northeast-1"},\n    {"endpoint": "https://eeee.route53-recovery-cluster.ap-southeast-2.amazonaws.com/v1", "region": "ap-southeast-2"}\n  ],\n  "routingControls": {\n    "us-east-1": "arn:aws:route53-recovery-control::111122223333:controlpanel/abc/routingcontrol/east",\n    "us-west-2": "arn:aws:route53-recovery-control::111122223333:controlpanel/abc/routingcontrol/west"\n  }\n}'
   }
 }
