@@ -10,6 +10,8 @@ data:
   PROBE_TIMEOUT: {{ .Values.config.probeTimeout | quote }}
   FAILURES_TO_TRIP: {{ .Values.config.failuresToTrip | quote }}
   SUCCESS_TO_RECOVER: {{ .Values.config.successToRecover | quote }}
+  UNKNOWNS_TO_DISTRUST: {{ .Values.config.unknownsToDistrust | quote }}
+  EVALUATE_INTERVAL: {{ .Values.config.evaluateInterval | quote }}
   QUORUM_REQUIRED: {{ .Values.config.quorumRequired | quote }}
   QUORUM_TOTAL: {{ .Values.config.quorumTotal | quote }}
   FAIL_OPEN_HOLD: {{ .Values.config.failOpenHold | quote }}

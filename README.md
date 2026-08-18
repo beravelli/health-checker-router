@@ -137,9 +137,12 @@ the annotated list. The ones that matter:
 | --- | --- | --- |
 | `DATABASE_URL` | — | Required |
 | `PROBE_INTERVAL` | `5s` | Global default; per-service values override |
-| `FAILURES_TO_TRIP` | `3` | Hysteresis |
-| `SUCCESS_TO_RECOVER` | `2` | Hysteresis |
-| `QUORUM_REQUIRED` / `QUORUM_TOTAL` | `2` / `3` | Fail-open quorum |
+| `PROBE_TIMEOUT` | `3s` | Clamped to `PROBE_INTERVAL` |
+| `EVALUATE_INTERVAL` | `15s` | How often health is recomputed and weights reconciled |
+| `FAILURES_TO_TRIP` | `3` | Confirmed failures before a target trips |
+| `SUCCESS_TO_RECOVER` | `2` | Good probes before a target is healthy — including its first verdict after startup |
+| `UNKNOWNS_TO_DISTRUST` | `3` | Inconclusive probes before a target counts against quorum |
+| `QUORUM_REQUIRED` / `QUORUM_TOTAL` | `2` / `3` | Fail-open quorum. Tolerated blindness is `(TOTAL-REQUIRED)/TOTAL`; `REQUIRED` must be `< TOTAL` |
 | `FAIL_OPEN_HOLD` | `10m` | How long last-known-good weights are held |
 | `LDAP_URL`, `LDAP_BASE_DN`, … | — | Required unless `AUTH_DISABLED=true` |
 | `LDAP_ADMIN_GROUP` | `sre-admins` | Group gating every mutation |

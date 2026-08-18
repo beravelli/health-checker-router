@@ -154,24 +154,34 @@ func (r *Runner) Status(serviceID, regionID string) (models.Status, bool) {
 	return s.Current(), true
 }
 
-// UnknownRatio reports the fraction of tracked targets in a region whose most
-// recent probes have been inconclusive. The fail-open controller uses it to
-// decide whether the region's health signal can be trusted at all.
+// UnknownRatio reports the fraction of tracked targets in a region whose signal
+// is currently unusable. The fail-open controller uses it to decide whether the
+// region's health can be trusted at all.
+//
+// A target counts once it has returned cfg.UnknownsToDistrust consecutive
+// inconclusive probes, or while it still sits at its seeded unknown. Counting a
+// single unknown would make this the one undebounced path in the pipeline, and
+// a checker-side network fault produces exactly that: every target going
+// inconclusive on the same tick.
 func (r *Runner) UnknownRatio(regionID string) float64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	threshold := r.cfg.UnknownsToDistrust
 	var total, unknown int
 	for key, st := range r.states {
 		if !strings.HasSuffix(key, "|"+regionID) {
 			continue
 		}
 		total++
-		if st.ConsecutiveUnknowns() > 0 {
+		if st.IsInconclusive(threshold) {
 			unknown++
 		}
 	}
 	if total == 0 {
+		// No targets registered for the region. There is nothing to be blind
+		// about, so report full visibility rather than tripping fail-open on an
+		// empty region.
 		return 0
 	}
 	return float64(unknown) / float64(total)

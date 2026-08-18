@@ -202,11 +202,20 @@ your normal change process.
 | `QUORUM_REQUIRED` | 2 | Conclusive probes needed |
 | `QUORUM_TOTAL` | 3 | Probes expected |
 | `FAIL_OPEN_HOLD` | 10m | How long last-known-good weights are held |
-| `FAILURES_TO_TRIP` | 3 | Global hysteresis default |
-| `SUCCESS_TO_RECOVER` | 2 | Global hysteresis default |
+| `FAILURES_TO_TRIP` | 3 | Confirmed failures before a target trips |
+| `SUCCESS_TO_RECOVER` | 2 | Good probes before a target is healthy |
+| `UNKNOWNS_TO_DISTRUST` | 3 | Inconclusive probes before a target counts against quorum |
+| `EVALUATE_INTERVAL` | 15s | How often the decision loop runs |
 
-When more than `(total - required + 1) / total` of a region's targets report
-unknown, the region's signal is untrusted and the system:
+`QUORUM_REQUIRED` must be strictly less than `QUORUM_TOTAL`. Equal values
+tolerate zero inconclusive probes, so the first blip would distrust the region
+and hold fail-open indefinitely; the server refuses to start on that config.
+
+### When a region stops being trusted
+
+The tolerated share of inconclusive targets is `(total - required) / total` —
+one third at the 2-of-3 default. Above that, quorum is not met, the region's
+signal is untrusted, and the system:
 
 1. Suppresses automatic reweighting entirely — the last good split stands
 2. Opens a fail-open window and pages on-call
@@ -215,6 +224,21 @@ unknown, the region's signal is untrusted and the system:
 
 Manual operator actions still work throughout. Fail-open constrains what the
 *system* will do on its own, not what you can do.
+
+A target counts as inconclusive once it has returned `UNKNOWNS_TO_DISTRUST`
+consecutive unknown probes, or while it is still at its startup state having
+never produced a verdict. Both paths matter when the fault is on the checker's
+side rather than the target's: a network problem local to the checker turns
+every probe inconclusive simultaneously, and a checker restarted mid-incident
+must not report health it has not measured.
+
+### Tuning for a noisy network
+
+If probes are inconclusive often enough that fail-open opens spuriously, raise
+`UNKNOWNS_TO_DISTRUST` before touching quorum. It buys tolerance for transient
+blips without widening how blind the system is willing to be while still moving
+traffic. Widening quorum tolerance — raising `QUORUM_TOTAL` relative to
+`QUORUM_REQUIRED` — does the opposite, and should be a deliberate decision.
 
 The current values are visible read-only in Failover & routing.
 

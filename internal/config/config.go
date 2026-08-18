@@ -24,6 +24,21 @@ type Config struct {
 	FailuresToTrip   int
 	SuccessToRecover int
 
+	// UnknownsToDistrust is how many consecutive inconclusive probes a target
+	// must return before it counts against its region's quorum.
+	//
+	// Failures are debounced by FailuresToTrip; without this, unknowns are not
+	// debounced at all and a single transport blip — which hits every target at
+	// once when the fault is on the checker's side — can swing the unknown ratio
+	// in one evaluation tick.
+	UnknownsToDistrust int
+
+	// EvaluateInterval is how often health is recomputed and weights are
+	// reconciled. Deliberately slower than ProbeInterval: probes gather
+	// evidence, the evaluate loop acts on it, and acting faster than evidence
+	// accumulates only adds churn.
+	EvaluateInterval time.Duration
+
 	// Fail-open policy.
 	QuorumRequired int
 	QuorumTotal    int
@@ -60,6 +75,8 @@ func Load() (*Config, error) {
 		ProbeTimeout:       envDuration("PROBE_TIMEOUT", 3*time.Second),
 		FailuresToTrip:     envInt("FAILURES_TO_TRIP", 3),
 		SuccessToRecover:   envInt("SUCCESS_TO_RECOVER", 2),
+		UnknownsToDistrust: envInt("UNKNOWNS_TO_DISTRUST", 3),
+		EvaluateInterval:   envDuration("EVALUATE_INTERVAL", 15*time.Second),
 		QuorumRequired:     envInt("QUORUM_REQUIRED", 2),
 		QuorumTotal:        envInt("QUORUM_TOTAL", 3),
 		FailOpenHold:       envDuration("FAIL_OPEN_HOLD", 10*time.Minute),
@@ -87,6 +104,23 @@ func Load() (*Config, error) {
 	}
 	if c.QuorumRequired > c.QuorumTotal {
 		return nil, fmt.Errorf("QUORUM_REQUIRED (%d) exceeds QUORUM_TOTAL (%d)", c.QuorumRequired, c.QuorumTotal)
+	}
+	if c.QuorumRequired < 1 {
+		return nil, fmt.Errorf("QUORUM_REQUIRED must be at least 1, got %d", c.QuorumRequired)
+	}
+	// QuorumRequired == QuorumTotal leaves no tolerance at all: a single
+	// inconclusive target would distrust the whole region and pin the system
+	// into a permanent fail-open hold.
+	if c.QuorumRequired == c.QuorumTotal {
+		return nil, fmt.Errorf(
+			"QUORUM_REQUIRED (%d) equals QUORUM_TOTAL (%d), which tolerates zero inconclusive probes; "+
+				"set QUORUM_REQUIRED below QUORUM_TOTAL", c.QuorumRequired, c.QuorumTotal)
+	}
+	if c.UnknownsToDistrust < 1 {
+		return nil, fmt.Errorf("UNKNOWNS_TO_DISTRUST must be at least 1, got %d", c.UnknownsToDistrust)
+	}
+	if c.EvaluateInterval <= 0 {
+		return nil, fmt.Errorf("EVALUATE_INTERVAL must be positive, got %s", c.EvaluateInterval)
 	}
 	return c, nil
 }

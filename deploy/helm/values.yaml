@@ -73,6 +73,14 @@ config:
   probeTimeout: 3s
   failuresToTrip: 3
   successToRecover: 2
+  # Consecutive inconclusive probes before a target counts against its region's
+  # quorum. The unknown-side counterpart to failuresToTrip.
+  unknownsToDistrust: 3
+  # How often health is recomputed and weights reconciled. Keep well above
+  # probeInterval.
+  evaluateInterval: 15s
+  # quorumRequired must be strictly less than quorumTotal; equal values tolerate
+  # no inconclusive probes and the server refuses to start.
   quorumRequired: 2
   quorumTotal: 3
   failOpenHold: 10m

@@ -32,12 +32,6 @@ import (
 	"github.com/beravelli/health-checker-router/internal/store"
 )
 
-// evaluateInterval is how often health is recomputed and weights reconciled.
-// It is deliberately slower than the probe interval: probes gather evidence,
-// this loop acts on it, and acting faster than evidence accumulates just adds
-// churn.
-const evaluateInterval = 15 * time.Second
-
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel()}))
 	slog.SetDefault(log)
@@ -112,7 +106,7 @@ func run(log *slog.Logger) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		evaluateLoop(ctx, log, db, aggregator, failOpen, lbController, probeRunner, hub)
+		evaluateLoop(ctx, log, cfg, db, aggregator, failOpen, lbController, probeRunner, hub)
 	}()
 
 	wg.Add(1)
@@ -136,6 +130,7 @@ func run(log *slog.Logger) error {
 func evaluateLoop(
 	ctx context.Context,
 	log *slog.Logger,
+	cfg *config.Config,
 	db *store.Store,
 	agg *health.Aggregator,
 	failOpen *failopen.Controller,
@@ -143,7 +138,7 @@ func evaluateLoop(
 	runner *prober.Runner,
 	hub *events.Hub,
 ) {
-	ticker := time.NewTicker(evaluateInterval)
+	ticker := time.NewTicker(cfg.EvaluateInterval)
 	defer ticker.Stop()
 
 	for {

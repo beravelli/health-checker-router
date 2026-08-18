@@ -76,13 +76,19 @@ type Controller struct {
 	pagedForHold bool
 }
 
-// New constructs a Controller.
+// New constructs a Controller, filling in the 2-of-3 default policy.
+//
+// QuorumTotal must end up strictly greater than QuorumRequired. Equal values
+// yield zero unknown tolerance, which would distrust a region on its first
+// inconclusive probe and pin the system into a permanent fail-open hold — the
+// opposite of the intent. config.Load rejects that combination outright; here
+// it is corrected, since New also serves callers that build a Policy directly.
 func New(policy Policy, s Store, pager Pager, hub *events.Hub, log *slog.Logger) *Controller {
 	if policy.QuorumRequired < 1 {
 		policy.QuorumRequired = 2
 	}
-	if policy.QuorumTotal < policy.QuorumRequired {
-		policy.QuorumTotal = policy.QuorumRequired
+	if policy.QuorumTotal <= policy.QuorumRequired {
+		policy.QuorumTotal = policy.QuorumRequired + 1
 	}
 	if policy.Hold <= 0 {
 		policy.Hold = 10 * time.Minute
@@ -94,12 +100,21 @@ func New(policy Policy, s Store, pager Pager, hub *events.Hub, log *slog.Logger)
 func (c *Controller) Policy() Policy { return c.policy }
 
 // unknownTolerance is the fraction of a region's targets that may be
-// inconclusive before the region's signal is considered untrustworthy.
+// inconclusive while the region's signal is still trustworthy.
 //
-// Derived from the quorum rule: with 2-of-3 required, losing more than one
-// third of the signal means quorum is not met.
+// Derived directly from the quorum rule. QuorumRequired of QuorumTotal probes
+// must be conclusive, so the conclusive share must be at least
+// QuorumRequired/QuorumTotal, and the inconclusive share may be at most
+// (QuorumTotal-QuorumRequired)/QuorumTotal. With the 2-of-3 default that is one
+// third.
+//
+// This previously carried a +1 in the numerator, which returned two thirds for
+// the 2-of-3 default — double the documented tolerance. The effect was that a
+// region kept driving traffic weights until two of every three probes had gone
+// dark, which is precisely the blindness this package exists to refuse to act
+// on.
 func (c *Controller) unknownTolerance() float64 {
-	return float64(c.policy.QuorumTotal-c.policy.QuorumRequired+1) / float64(c.policy.QuorumTotal)
+	return float64(c.policy.QuorumTotal-c.policy.QuorumRequired) / float64(c.policy.QuorumTotal)
 }
 
 // Evaluate decides, per region, whether the health signal can be trusted, and
@@ -114,7 +129,8 @@ func (c *Controller) Evaluate(ctx context.Context, regions []models.Region, rati
 	var untrusted []string
 	for _, r := range regions {
 		ratio := ratios.UnknownRatio(r.ID)
-		trusted := ratio < tolerance
+		// <= not <: at exactly the tolerance the quorum rule is still satisfied.
+		trusted := ratio <= tolerance
 		d.Trusted[r.ID] = trusted
 		if !trusted {
 			untrusted = append(untrusted, fmt.Sprintf("%s (%.0f%% of probes inconclusive)", r.ID, ratio*100))
